@@ -131,6 +131,8 @@ GET /lifecycle-manager/model
 GET /automation-studio/projects?limit=500
 ```
 
+> **Visibility caveat:** Global Automation Studio assets (the focus of this skill) are **not** access-restricted by ACL — they are visible to any authenticated client, so list endpoints like `GET /automation-studio/workflows?exclude-project-members=true` return the complete global set regardless of the calling client. The catalog of *globals* is therefore not undercounted by RBAC. The one exception in the list above is `GET /automation-studio/projects?limit=500`, which **is** filtered by per-project ACLs (each project must explicitly grant access to a user or group; there is no platform-wide admin or "all-projects" role). Since this skill targets global assets, projects are out of scope by default — but if the engineer names a specific project they expect, route to `/project-to-spec`, which handles visibility-vs-existence properly.
+
 ### Classification Signatures
 
 | Asset Type | Identifying Fields |
@@ -399,6 +401,7 @@ Flag anything that couldn't be moved (already in a project, API error) for manua
 
 ## Gotchas
 
+- **Global assets are not access-restricted; projects are.** Global Automation Studio assets (the focus of this skill) are visible to any authenticated client — RBAC does not undercount the global catalog. The `/automation-studio/projects` list, however, **is** filtered by per-project ACL (every project must explicitly grant a user or group; there is no platform-wide admin or "all-projects" role). For documenting *globals*, this is mostly out of scope; if the engineer names a specific project they expect, route to `/project-to-spec` rather than declaring it absent.
 - **NEVER produce JSON files as output.** Only markdown reports.
 - **childJob `workflow` is the primary relationship link.** Don't trace `$var` references across workflows.
 - **Naming prefix is a heuristic, not a rule.** Prioritize childJob graph over naming when they conflict.
