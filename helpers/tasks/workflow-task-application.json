@@ -1,13 +1,12 @@
 {
-  "name": "",
-  "canvasName": "",
-  "summary": "",
-  "description": "",
+  "name": "REPLACE_TASK_NAME",
+  "canvasName": "REPLACE_CANVAS_NAME",
+  "summary": "REPLACE_SUMMARY",
   "location": "Application",
   "locationType": null,
-  "app": "",
+  "app": "REPLACE_APP_NAME",
   "type": "operation",
-  "displayName": "",
+  "displayName": "REPLACE_APP_NAME",
   "variables": {
     "incoming": {},
     "outgoing": {},
@@ -15,8 +14,6 @@
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

@@ -1,8 +1,7 @@
 {
   "name": "evaluation",
-  "canvasName": "evaluation",
-  "summary": "",
-  "description": "Evaluate an expression and branch the workflow. Uses operand_1/operand_2 with nested task+variable refs — not flat operand1/operand2. Must have BOTH success AND failure transitions. Check task-schemas.json for exact shape.",
+  "canvasName": "Evaluate Result",
+  "summary": "Branch on condition",
   "location": "Application",
   "locationType": null,
   "app": "WorkFlowEngine",
@@ -10,27 +9,29 @@
   "displayName": "WorkFlowEngine",
   "variables": {
     "incoming": {
-      "expression": {
-        "operand_1": {
-          "task": "job",
-          "variable": "variableName"
-        },
-        "operator": "==",
-        "operand_2": {
-          "task": "static",
-          "variable": "success"
+      "evaluation_groups": [
+        {
+          "operand_1": {
+            "task": "job",
+            "variable": "REPLACE_VAR_NAME"
+          },
+          "operator": "==",
+          "operand_2": {
+            "task": "static",
+            "variable": "REPLACE_EXPECTED_VALUE"
+          }
         }
-      }
+      ],
+      "all_true_flag": false,
+      "options": {}
     },
     "outgoing": {
-      "result": null
+      "return_value": null
     },
     "error": "",
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

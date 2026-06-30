@@ -1,14 +1,13 @@
 {
-  "name": "",
-  "canvasName": "",
-  "summary": "",
-  "description": "",
+  "name": "REPLACE_TASK_NAME",
+  "canvasName": "REPLACE_CANVAS_NAME",
+  "summary": "REPLACE_SUMMARY",
   "location": "Adapter",
-  "locationType": "",
-  "app": "",
-  "adapter_id": "",
+  "locationType": "REPLACE_ADAPTER_TYPE",
+  "app": "REPLACE_ADAPTER_TYPE",
+  "adapter_id": "REPLACE_ADAPTER_INSTANCE_NAME",
   "type": "automatic",
-  "displayName": "",
+  "displayName": "REPLACE_ADAPTER_TYPE",
   "variables": {
     "incoming": {},
     "outgoing": {},
@@ -16,8 +15,6 @@
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

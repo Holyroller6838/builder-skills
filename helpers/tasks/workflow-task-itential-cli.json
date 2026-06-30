@@ -1,8 +1,7 @@
 {
   "name": "itential_cli",
-  "canvasName": "itential_cli",
-  "summary": "Push Config to Device",
-  "description": "Pushes CLI commands to devices via IAG AGManager. _hosts is an array of device hostnames, command is an array of CLI command strings. Wire two of these back-to-back: first for dry-run preview, second for commit after user approval via ViewData.",
+  "canvasName": "Push Config to Device",
+  "summary": "Send CLI commands to devices via AGManager",
   "location": "Application",
   "locationType": null,
   "app": "AGManager",
@@ -10,19 +9,23 @@
   "displayName": "AG Manager",
   "variables": {
     "incoming": {
-      "_hosts": "$var.job.deviceArray",
-      "_groups": "",
-      "command": "$var.job.configCommandArray"
+      "_hosts": {
+        "task": "job",
+        "variable": "devices"
+      },
+      "_groups": null,
+      "command": {
+        "task": "job",
+        "variable": "configCommands"
+      }
     },
     "outgoing": {
-      "stdout": "$var.job.cliOutput"
+      "stdout": null
     },
     "error": "",
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

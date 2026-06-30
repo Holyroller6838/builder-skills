@@ -1,8 +1,7 @@
 {
   "name": "viewTemplateResults",
-  "canvasName": "viewTemplateResults",
-  "summary": "Review Check Results",
-  "description": "Manual task — pauses the workflow and displays MOP command template results to the operator in the UI. No outgoing variables. Always follows RunCommandTemplate. Operator clicks through to continue.",
+  "canvasName": "Review Check Results",
+  "summary": "Display MOP results to operator and pause for review",
   "location": "Application",
   "locationType": null,
   "app": "MOP",
@@ -10,15 +9,16 @@
   "displayName": "MOP",
   "variables": {
     "incoming": {
-      "mop_template_results": "$var.job.mopResults"
+      "mop_template_results": {
+        "task": "job",
+        "variable": "mopResults"
+      }
     },
     "outgoing": {},
     "error": "",
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

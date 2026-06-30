@@ -1,8 +1,7 @@
 {
   "name": "reattempt",
-  "canvasName": "reattempt",
-  "summary": "Retry Check",
-  "description": "Retries a MOP RunCommandTemplate check after a delay. Wire on the failure path of an evaluation that checks mop_template_results. job_id is the current job ID, attemptID identifies the retry context, minutes is the wait before retrying, attempts is the max retry count.",
+  "canvasName": "Retry Check",
+  "summary": "Retry a MOP check after a delay",
   "location": "Application",
   "locationType": null,
   "app": "MOP",
@@ -10,20 +9,21 @@
   "displayName": "MOP",
   "variables": {
     "incoming": {
-      "job_id": "$var.job._id",
-      "attemptID": "preCheck",
+      "job_id": {
+        "task": "job",
+        "variable": "_id"
+      },
+      "attemptID": "REPLACE_ATTEMPT_ID",
       "minutes": 2,
       "attempts": 3
     },
     "outgoing": {
-      "response": "$var.job.reattemptResponse"
+      "response": null
     },
     "error": "",
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

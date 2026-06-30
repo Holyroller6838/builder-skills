@@ -1,8 +1,7 @@
 {
   "name": "query",
-  "canvasName": "query",
-  "summary": "",
-  "description": "Query data using a dot/bracket notation string",
+  "canvasName": "Query Data",
+  "summary": "Extract a value from job data",
   "location": "Application",
   "locationType": null,
   "app": "WorkFlowEngine",
@@ -11,8 +10,11 @@
   "variables": {
     "incoming": {
       "pass_on_null": false,
-      "query": "",
-      "obj": ""
+      "query": "$.REPLACE_FIELD_PATH",
+      "obj": {
+        "task": "REPLACE_TASK_ID",
+        "variable": "REPLACE_VAR"
+      }
     },
     "outgoing": {
       "return_data": null
@@ -21,8 +23,6 @@
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

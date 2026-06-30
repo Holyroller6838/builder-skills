@@ -1,8 +1,7 @@
 {
   "name": "newVariable",
-  "canvasName": "newVariable",
-  "summary": "",
-  "description": "Create a job variable that transcends the job — use when data must be accessible to a parent job or external systems evaluating job results",
+  "canvasName": "Set Variable",
+  "summary": "Set a job variable",
   "location": "Application",
   "locationType": null,
   "app": "WorkFlowEngine",
@@ -10,8 +9,8 @@
   "displayName": "WorkFlowEngine",
   "variables": {
     "incoming": {
-      "name": "",
-      "value": ""
+      "name": "REPLACE_VAR_NAME",
+      "value": "REPLACE_VALUE"
     },
     "outgoing": {
       "value": null
@@ -20,8 +19,6 @@
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312

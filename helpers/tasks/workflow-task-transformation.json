@@ -1,8 +1,7 @@
 {
   "name": "transformation",
-  "canvasName": "transformation",
-  "summary": "",
-  "description": "Perform a JSON transformation using the JST library",
+  "canvasName": "Transform Data",
+  "summary": "Run a JST transformation",
   "location": "Application",
   "locationType": null,
   "app": "WorkFlowEngine",
@@ -10,7 +9,7 @@
   "displayName": "WorkFlowEngine",
   "variables": {
     "incoming": {
-      "tr_id": "",
+      "tr_id": "REPLACE_TRANSFORMATION_ID",
       "variableMap": {},
       "options": {
         "extractOutput": true,
@@ -18,13 +17,13 @@
         "revertToDefaultValue": true
       }
     },
-    "outgoing": {},
+    "outgoing": {
+      "outgoing": null
+    },
     "error": "",
     "decorators": []
   },
   "groups": [],
-  "actor": "Pronghorn",
-  "scheduled": false,
   "nodeLocation": {
     "x": 600,
     "y": 312
