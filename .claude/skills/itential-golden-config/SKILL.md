@@ -117,49 +117,18 @@ Response creates the tree with version `initial`, a root node, and an empty conf
 
 **Device types:** `cisco-ios`, `cisco-ios-xr`, `cisco-nx`, `arista-eos`, `json` (for non-CLI structured data like AWS Security Groups)
 
-**Real-world tree example (multi-region hierarchy):**
+**`variables` are NOT set on create** — the create body only accepts `name`, `deviceType`, and `description`. Variables are set after creation via `PUT /configuration_manager/node/config` on the `base` node with `updateVariables: true`:
 ```json
 {
-  "name": "Global DC",
-  "deviceType": "cisco-ios",
-  "root": {
-    "name": "Global",
-    "attributes": { "configId": "...c00", "devices": [] },
-    "children": [
-      {
-        "name": "EMEA",
-        "attributes": { "configId": "...c01" },
-        "children": [
-          { "name": "London", "attributes": { "configId": "...c02" }, "children": [] }
-        ]
-      },
-      {
-        "name": "North America",
-        "attributes": { "configId": "...c03" },
-        "children": [
-          { "name": "Atlanta", "attributes": { "configId": "...c04" }, "children": [] }
-        ]
-      },
-      {
-        "name": "APAC",
-        "attributes": { "configId": "...c05" },
-        "children": [
-          { "name": "Sydney", "attributes": { "configId": "...c06" }, "children": [] }
-        ]
-      }
-    ]
-  },
-  "variables": {
-    "hostname": "www.itential.io",
-    "ntp_server_name": "ntp.itential.io",
-    "version_regex": "\\d+\\.\\d+",
-    "interfaces": [
-      { "name": "Loopback101", "description": "This is a test", "ip_address": "192.1.3.1" },
-      { "name": "Loopback102", "description": "This is a test loopback", "ip_address": "192.2.3.1" }
-    ]
-  }
+  "treeId": "{treeId}",
+  "treeVersion": "initial",
+  "nodePath": "base",
+  "data": { "template": "", "variables": { "hostname": "router.example.com" } },
+  "updateVariables": true
 }
 ```
+
+**Bulk delete trees** — `DELETE /configuration_manager/configs` requires body `{"treeIds": ["id1", "id2"]}`. A tree cannot be deleted while it is referenced by a compliance plan — delete the plan first.
 
 ### Nodes
 
@@ -441,7 +410,7 @@ Compliance plans group golden config nodes with their target devices into a runn
 | POST | `/configuration_manager/compliance_plans` | Create a compliance plan |
 | GET | `/configuration_manager/compliance_plans/{planId}` | Get a compliance plan |
 | PUT | `/configuration_manager/compliance_plans` | Update a compliance plan |
-| DELETE | `/configuration_manager/compliance_plans` | Delete compliance plans |
+| DELETE | `/configuration_manager/compliance_plans` | Delete compliance plans — body: `{"planIds": ["id1"]}` |
 | POST | `/configuration_manager/compliance_plans/run` | Run a compliance plan |
 | POST | `/configuration_manager/compliance_plans/nodes` | Add nodes to a compliance plan |
 | DELETE | `/configuration_manager/compliance_plans/nodes` | Remove nodes from a compliance plan |
@@ -754,7 +723,7 @@ There is **no exception** — not even when a spec asks for fully automatic reme
    - **`netmikoSendConfig` / `netmikoSendConfigSet`** (AG) — netmiko-based config push
    - whatever vendor/SSH adapter the environment uses for config push
 
-   See `/builder-agent`'s config-push pattern and `helpers/reference-push-config-workflow.json`.
+   See `/builder-agent`'s config-push pattern and `helpers/reference/reference-push-config-workflow.json`.
 3. Re-run compliance (this skill) afterward to confirm the device is back in standard.
 
 This keeps detection (Golden Config) and correction (a reviewed config-push) cleanly separated, and survives the Platform 7 removal of auto-remediation.
@@ -766,6 +735,7 @@ This keeps detection (Golden Config) and correction (a reviewed config-push) cle
 | File | API Call | Description |
 |------|----------|-------------|
 | `create-golden-config-tree.json` | `POST /configuration_manager/configs` | Create a golden config tree |
+| `reference-golden-config-tree.json` | `POST /configuration_manager/import/goldenconfigs` | Full multi-region tree reference (Global → EMEA/NA/APAC with node templates and variables) |
 | `update-node-config.json` | `PUT /configuration_manager/node/config` | Update node template with all syntax features |
 | `create-golden-config-node.json` | `POST /configuration_manager/configs/{treeId}/{version}/{parentPath}` | Create a child node |
 | `add-devices-to-node.json` | `POST /configuration_manager/configs/{treeId}/{version}/{nodePath}/devices` | Assign devices |

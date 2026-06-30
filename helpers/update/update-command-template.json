@@ -1,16 +1,17 @@
 {
   "mop": {
-    "name": "",
-    "description": "",
+    "name": "REPLACE_TEMPLATE_NAME",
+    "description": "REPLACE_DESCRIPTION",
     "os": "",
     "passRule": true,
+    "tags": [],
     "commands": [
       {
-        "command": "show running-config interface <!interface!>",
+        "command": "REPLACE_COMMAND",
         "passRule": true,
         "rules": [
           {
-            "rule": "switchport access vlan <!vlan_id!>",
+            "rule": "REPLACE_RULE",
             "eval": "contains",
             "severity": "error",
             "evaluation": "pass"
