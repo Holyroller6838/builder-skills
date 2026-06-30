@@ -71,6 +71,13 @@ htmlcov/
 *.cover
 
 # =============================================================================
+# Platform and Use-Case Runtime Data
+# =============================================================================
+# Pulled from live platform — not committed, regenerated via scripts/
+platform/
+use-cases/
+
+# =============================================================================
 # MAINTAINER: Add language-specific patterns below
 # =============================================================================
 # Examples:

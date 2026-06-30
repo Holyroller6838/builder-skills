@@ -58,13 +58,57 @@ Requirements  →  Feasibility  →  Design  →  Build  →  As-Built
 
 **IMPORTANT: Invoke skills using the Skill tool** — don't just reference them in text. When you need to build workflows/templates, invoke `/builder-agent`. The skills contain the API details you need. Without loading them, you're guessing.
 
+### Directory Layout
+
+Platform data (shared, pulled once) and use-case data (per engagement) live in separate directories. **Never mix them.**
+
+```
+builder-skills/
+├── platform/               ← pulled once via scripts/platform-pull.sh
+│   ├── openapi.json        — full API reference (search locally, never load fully)
+│   ├── tasks.json          — complete task catalog
+│   ├── apps.json           — registered apps and adapter types
+│   ├── adapters.json       — adapter instances and state
+│   ├── applications.json   — application details
+│   ├── environment.md      — human-readable summary
+│   └── .pulled-at          — timestamp of last pull (checked before re-pulling)
+│
+└── use-cases/
+    └── <use-case-name>/    ← scaffolded via scripts/use-case-init.sh
+        ├── .env            — credentials (gitignored)
+        ├── .auth.json      — live bearer token (gitignored, auto-refreshed)
+        ├── task-schemas.json — schemas fetched on demand (cached, never re-fetch)
+        └── (deliverables: customer-spec.md, solution-design.md, as-built.md, assets)
+```
+
+**Setup sequence (one-time per platform):**
+```bash
+./scripts/platform-pull.sh <platform-url> <client-id> <client-secret>
+```
+
+**Per use-case:**
+```bash
+./scripts/use-case-init.sh <use-case-name> <platform-url> <client-id> <client-secret>
+```
+
+**Refresh platform data** (after platform upgrade or new adapters installed):
+```bash
+./scripts/platform-pull.sh --refresh <platform-url> <client-id> <client-secret>
+```
+
+**Data lookup order:**
+- `openapi.json`, `tasks.json`, `apps.json`, `adapters.json`, `applications.json` → always in `platform/`
+- `task-schemas.json`, `.auth.json`, deliverables → always in `use-cases/<name>/`
+- If `platform/` is missing → tell the user to run `scripts/platform-pull.sh` first
+
 ### Auth Reuse — Authenticate Once, Reuse Everywhere
 
-**Auth happens when first needed** — in `/explore` (explore path) or in `/solution-arch-agent` during Feasibility. The token is saved to `{use-case}/.auth.json`. Every subsequent skill should:
-1. Read `{use-case}/.auth.json` for `platform_url`, `auth_method`, and `token`
-2. Use the token for all API calls (Bearer header for OAuth, query param for local)
-3. On auth error (401/403): re-authenticate silently — see procedure below
-4. **Never ask the user for credentials if `.env` exists**
+**Auth happens when first needed** — in `/explore` (explore path) or in `/solution-arch-agent` during Feasibility. The token is saved to `use-cases/{use-case}/.auth.json`. Every subsequent skill should:
+1. Read `use-cases/{use-case}/.auth.json` for the token
+2. Read `use-cases/{use-case}/.env` for `PLATFORM_URL` and credentials
+3. Use the token for all API calls (Bearer header for OAuth)
+4. On auth error (401/403): re-authenticate silently — see procedure below
+5. **Never ask the user for credentials if `.env` exists**
 
 This means the user authenticates once and every subsequent skill just works.
 
@@ -72,11 +116,9 @@ This means the user authenticates once and every subsequent skill just works.
 
 When any API call returns 401 or 403, do not stop and do not ask the user. Re-authenticate silently:
 
-1. Read credentials from `{use-case}/.env` (or `${CLAUDE_PLUGIN_ROOT}/environments/*.env` if no use-case `.env`)
-2. Call the appropriate auth endpoint:
-   - **OAuth:** `POST {PLATFORM_URL}/oauth/token` with `Content-Type: application/x-www-form-urlencoded` and body `grant_type=client_credentials&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET}`
-   - **Local/password:** `POST {PLATFORM_URL}/login` with `{"username": "...", "password": "..."}`
-3. Write the new token back to `{use-case}/.auth.json`
+1. Read credentials from `use-cases/{use-case}/.env`
+2. Call: `POST {PLATFORM_URL}/oauth/token` with `Content-Type: application/x-www-form-urlencoded` and body `grant_type=client_credentials&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET}`
+3. Write the new token back to `use-cases/{use-case}/.auth.json`
 4. Retry the failed request with the new token
 
 If `.env` does not exist and re-auth is needed, then and only then ask the user for credentials.
@@ -85,26 +127,16 @@ If `.env` does not exist and re-auth is needed, then and only then ask the user 
 
 **Skills** teach patterns, workflows, and know-how (how to build a childJob, how to wire variables, how to test).
 
-**`openapi.json`** has every endpoint, method, request body, and response schema. Pull it locally if not already present, then search — never guess.
-
-**How to get it:**
-```bash
-# OAuth (cloud)
-curl -s "{BASE}/help/openapi?url={ENCODED_BASE}" -H "Authorization: Bearer {TOKEN}" > openapi.json
-
-# Local dev
-curl -s "{BASE}/help/openapi?url={ENCODED_BASE}&token={TOKEN}" > openapi.json
-```
-For explore mode, `/explore` pulls this automatically. For spec mode, `/solution-arch-agent` pulls it during Feasibility. If you're working outside those flows, fetch it yourself.
+**`platform/openapi.json`** has every endpoint, method, request body, and response schema. Search it locally — never load the full file into context.
 
 **Before making any API call:**
 1. Check the relevant skill for the pattern
-2. Search `openapi.json` locally to confirm the endpoint, method, request body, and response schema — `jq '.paths["/the/endpoint"]'`
-3. **Check the body wrapper** — most Itential APIs wrap the body in a top-level key. Find it: `jq '.paths["/the/endpoint"].post.requestBody.content["application/json"].schema.properties | keys'` → returns the wrapper name (e.g., `["role"]` means `{role: {...}}`)
+2. Search `platform/openapi.json` to confirm the endpoint, method, request body, and response schema — `jq '.paths["/the/endpoint"]' platform/openapi.json`
+3. **Check the body wrapper** — most Itential APIs wrap the body in a top-level key. Find it: `jq '.paths["/the/endpoint"].post.requestBody.content["application/json"].schema.properties | keys' platform/openapi.json` → returns the wrapper name (e.g., `["role"]` means `{role: {...}}`)
 4. Never hardcode API assumptions — the spec is the source of truth
 
 **Before fetching task schemas:**
-1. Check if `{use-case}/task-schemas.json` exists — search it first with `jq` or `grep`
+1. Check if `use-cases/{use-case}/task-schemas.json` exists — search it first with `jq` or `grep`
 2. Only call `multipleTaskDetails` for tasks NOT already in the local file
 3. After fetching, always append to the local file so future lookups are instant
 
@@ -193,7 +225,7 @@ Requirements  →  Feasibility  →  Design  →  Build  →  As-Built
 12. **API response shapes vary** — projects use `{message, data, metadata}`, but workflow and template lists use `{items, skip, limit, total}`, and create endpoints return `{created, edit}`. Always check the response shape before parsing
 13. **Project component types** — valid values: `workflow`, `template`, `transformation`, `jsonForm`, `mopCommandTemplate`, `mopAnalyticTemplate`
 14. **Use skills, don't reimplement** — `/builder-agent` covers projects, workflows, templates, MOP, and testing. Only load other skills for their specific domains (IAG, FlowAgent, MOP, etc.)
-15. **When unsure about ANY endpoint, method, or payload — check `openapi.json` FIRST.** Run `jq '.paths["/the/endpoint"]' {use-case}/openapi.json` to see the method, request body schema, and response schema. Don't guess, don't try variations, don't make up field names — look it up. The spec is always right.
+15. **When unsure about ANY endpoint, method, or payload — check `openapi.json` FIRST.** Run `jq '.paths["/the/endpoint"]' platform/openapi.json` to see the method, request body schema, and response schema. Don't guess, don't try variations, don't make up field names — look it up. The spec is always right.
 16. **If `openapi.json` is not local, fetch it** — `GET /help/openapi?url={ENCODED_BASE}` and save it. Then search locally.
 17. **If the openapi schema is empty for an endpoint** — check the corresponding POST/PUT endpoint's schema for the wrapper pattern. As a last resort, send `{}` and read the `"Missing Params"` error — it lists every required field with name, type, and examples.
 18. **Endpoint base paths differ** — task catalog is at `/workflow_builder/tasks/list`, but task schemas are at `/automation-studio/multipleTaskDetails` (NOT `/workflow_builder/multipleTaskDetails`). Don't mix them up.
