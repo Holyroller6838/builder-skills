@@ -14,6 +14,7 @@ import sys
 import urllib.parse
 import urllib.request
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,14 +23,12 @@ PLATFORM_DIR = Path(__file__).parent.parent / "platform"
 PULLED_AT_FILE = PLATFORM_DIR / ".pulled-at"
 
 
-def fetch(url, token=None, label=None):
-    req = urllib.request.Request(url)
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
-    if label:
-        print(f"  Pulling {label}...")
+def fetch(url, token, filename):
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
     with urllib.request.urlopen(req) as resp:
-        return resp.read()
+        data = resp.read()
+    print(f"  ✓ {filename}")
+    return filename, data
 
 
 def authenticate(base, client_id, client_secret):
@@ -136,9 +135,12 @@ def main():
         "applications.json": f"{base}/health/applications",
     }
 
-    for filename, url in files.items():
-        data = fetch(url, token=token, label=filename)
-        (PLATFORM_DIR / filename).write_bytes(data)
+    print(f"Pulling {len(files)} files in parallel...")
+    with ThreadPoolExecutor(max_workers=len(files)) as executor:
+        futures = {executor.submit(fetch, url, token, filename): filename for filename, url in files.items()}
+        for future in as_completed(futures):
+            filename, data = future.result()
+            (PLATFORM_DIR / filename).write_bytes(data)
 
     print("  Generating environment.md...")
     generate_environment_summary(PLATFORM_DIR)
