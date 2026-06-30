@@ -64,7 +64,7 @@ Platform data (shared, pulled once) and use-case data (per engagement) live in s
 
 ```
 builder-skills/
-├── platform/               ← pulled once via scripts/platform-pull.sh
+├── platform/               ← pulled once via scripts/platform_pull.py
 │   ├── openapi.json        — full API reference (search locally, never load fully)
 │   ├── tasks.json          — complete task catalog
 │   ├── apps.json           — registered apps and adapter types
@@ -74,7 +74,7 @@ builder-skills/
 │   └── .pulled-at          — timestamp of last pull (checked before re-pulling)
 │
 └── use-cases/
-    └── <use-case-name>/    ← scaffolded via scripts/use-case-init.sh
+    └── <use-case-name>/    ← scaffolded via scripts/use_case_init.py
         ├── .env            — credentials (gitignored)
         ├── .auth.json      — live bearer token (gitignored, auto-refreshed)
         ├── task-schemas.json — schemas fetched on demand (cached, never re-fetch)
@@ -83,23 +83,23 @@ builder-skills/
 
 **Setup sequence (one-time per platform):**
 ```bash
-./scripts/platform-pull.sh <platform-url> <client-id> <client-secret>
+./scripts/platform_pull.py <platform-url> <client-id> <client-secret>
 ```
 
 **Per use-case:**
 ```bash
-./scripts/use-case-init.sh <use-case-name> <platform-url> <client-id> <client-secret>
+./scripts/use_case_init.py <use-case-name> <platform-url> <client-id> <client-secret>
 ```
 
 **Refresh platform data** (after platform upgrade or new adapters installed):
 ```bash
-./scripts/platform-pull.sh --refresh <platform-url> <client-id> <client-secret>
+./scripts/platform_pull.py --refresh <platform-url> <client-id> <client-secret>
 ```
 
 **Data lookup order:**
 - `openapi.json`, `tasks.json`, `apps.json`, `adapters.json`, `applications.json` → always in `platform/`
 - `task-schemas.json`, `.auth.json`, deliverables → always in `use-cases/<name>/`
-- If `platform/` is missing → tell the user to run `scripts/platform-pull.sh` first
+- If `platform/` is missing → tell the user to run `scripts/platform_pull.py` first
 
 ### Auth Reuse — Authenticate Once, Reuse Everywhere
 
