@@ -30,6 +30,7 @@ Lifecycle Manager (LCM) provides a declarative framework for managing the lifecy
 - `DELETE /resources/{id}` does NOT delete instances by default — pass `?delete-associated-instances=true` to cascade
 - Bulk actions and instance groups require `LCM_GROUPS_ENABLED=true` environment variable
 - **Action workflows MUST output a job variable named `instance`** containing the instance data. Without it, the action fails validation with "workflow does not output a value for 'instance'". Use a `merge` task to build the instance object and wire outgoing to `$var.job.instance`.
+- **Create action — instance merge must cover every `schema.required` field.** If the merge task's `data_to_merge` omits even one field listed in the model's `schema.required` array, the platform writes all provisioned cloud/network resources first and THEN fails the instance write — leaving those resources orphaned from LCM with no tracked state. Before building the merge task, read the model's required fields: `jq '.schema.required' helpers/assets/lcm/<model>.json`. Every required field must have a corresponding key in `data_to_merge`.
 - Action job type is `'resource:action'`, not `'automation'`
 - Transformations are Jinja2 templates referenced by template ID (`preWorkflowJst` / `postWorkflowJst`)
 
@@ -311,18 +312,39 @@ Errors at any phase stop execution. Each phase has its own status tracked in the
 
 ## Helper Templates
 
-| File | Purpose |
+**Read a real LCM action workflow before building.** The VXLAN Fabric Services project contains production LCM action workflows — they show exactly how to declare and output the required `instance` variable:
+
+```bash
+# List available LCM action workflows
+jq '[.data.project.components[] | select(.type=="workflow")] | .[].document.name' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/lcm/lcm-vxlan-fabric-services-project.json
+
+# Read a specific action workflow (e.g., Create)
+jq '[.data.project.components[] | select(.type=="workflow") | select(.document.name | test("Create"; "i"))] | first | .document | {name:.name, tasks:.tasks, transitions:.transitions}' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/lcm/lcm-vxlan-fabric-services-project.json
+```
+
+The resource model exports (in `${CLAUDE_PLUGIN_ROOT}/helpers/assets/lcm/`) show how actions are wired to workflows — import via `POST /lifecycle-manager/resources/import`:
+
+| File | Actions |
 |------|---------|
-| `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/lcm-action-workflow.json` | LCM action workflow with merge task that outputs `instance` variable. Start from this — it prevents the "workflow does not output a value for 'instance'" error. |
+| `lcm-vxlan-fabric-management.json` | Create Network, Re-Provision, Delete, Decommission (4/5 wired) |
+| `lcm-fan-device-lifecycle-management.json` | Device Onboarding, SW Compliance, Upgrade, Decommission, and more (9/10 wired) |
+| `lcm-ip-blocking-service.json` | Create, Update, Delete, Retry (fully wired) |
+| `lcm-interface-service-provisioning.json` | Create, Modify, Delete (fully wired) |
+| `lcm-port-turn-up.json` | Create, Delete, Service Verification, Update Service Policy (4/6 wired) |
 
 ## Developer Scenarios
 
 ### 1. Create a resource model with actions
 ```
 1. POST /lifecycle-manager/resources                    → create model with schema + actions
-2. Create workflows for each action in /itential-studio
-3. PUT /lifecycle-manager/resources/{id}                → update actions with workflow IDs
-4. POST /lifecycle-manager/resources/{id}/actions/validate → verify actions are valid
+2. Read model's schema.required BEFORE building Create workflow
+   jq '.schema.required' helpers/assets/lcm/<model>.json  -- every field here must be in the instance merge task
+3. Create workflows for each action in /itential-studio
+   Create action: instance-write merge task must cover ALL schema.required fields (missing one = orphaned resources)
+4. PUT /lifecycle-manager/resources/{id}                → update actions with workflow IDs
+5. POST /lifecycle-manager/resources/{id}/actions/validate → verify actions are valid
 ```
 
 ### 2. Run the full lifecycle

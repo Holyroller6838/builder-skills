@@ -51,15 +51,16 @@ This skill covers everything needed to build and test Itential automation assets
 {use-case}/
   .auth.json              ← auth token
   .env                    ← credentials (for re-auth if token expires)
-  openapi.json            ← API reference
-  tasks.json              ← task catalog
-  apps.json               ← app names
-  adapters.json           ← adapter instances
-  applications.json       ← app health
+  openapi.json            ← API reference (pulled by solution-arch-agent or explore)
+  tasks.json              ← task catalog (pulled by solution-arch-agent or explore)
+  apps.json               ← app/adapter type names (pulled by solution-arch-agent or explore)
+  adapters.json           ← adapter instances (pulled by solution-arch-agent or explore)
+  applications.json       ← app health (pulled by solution-arch-agent or explore)
 ```
 
 **May also exist (spec-contingent):**
 ```
+  use-case-memory.md      ← living context: IDs, decisions, gotchas, open items — READ THIS FIRST
   customer-spec.md        ← approved HLD (Requirements)
   feasibility.md          ← approved feasibility assessment
   customer-context.md     ← business rules (if provided)
@@ -67,7 +68,7 @@ This skill covers everything needed to build and test Itential automation assets
   devices.json            ← device inventory
   workflows.json          ← existing workflows
   device-groups.json      ← device groups
-  task-schemas.json       ← cached task schemas
+  task-schemas.json       ← fetched on demand during build (append-only, never pre-populated)
 ```
 
 **The builder NEVER re-pulls bootstrap or discovery data.** If `tasks.json`, `apps.json`, or `adapters.json` is missing, stop and tell the user — that's an upstream failure, not something to silently fix.
@@ -109,6 +110,7 @@ grant_type=client_credentials&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET
 ## Build Lifecycle
 
 ```
+0. Memory file              → create or read use-cases/{name}/use-case-memory.md
 1. Decompose                → identify parent/child split before writing any code
 2. Create project           → container for all assets
 3. Discover tasks           → search tasks.json, fetch schemas
@@ -121,12 +123,31 @@ grant_type=client_credentials&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET
 10. Test                    → jobs/start, check results
 11. Debug                   → check job.error, filesystem-first
 12. Reconcile               → diff built vs designed, update artifacts
-13. Update this skill       → if you hit a platform behavior not documented here, add it before closing out
+13. Update memory file      → record IDs, decisions, gotchas, test results, open items
+14. Update this skill       → if you hit a platform behavior not documented here, add it before closing out
 ```
 
-**Step 13 — how to update this skill:**
+**Step 0 — memory file:**
+
+At the start of every session, check for `use-cases/{use-case}/use-case-memory.md`:
+- **Exists** → read it before doing anything else. It tells you the platform, project ID, what's already built, decisions made, and open items. Don't re-discover what's already documented.
+- **Missing** → create it now from `${CLAUDE_PLUGIN_ROOT}/helpers/use-case-memory.md` template. Fill in Platform URL and Status immediately.
+
+**Step 13 — update memory file after every session:**
+
+Before closing out any build session, update `use-case-memory.md` with:
+- Any new asset IDs (project ID, workflow UUIDs, transformation IDs, adapter names)
+- Any architectural decisions made and **why**
+- Any gotchas hit and how they were fixed
+- Test results (date, what was tested, outcome)
+- Updated open items list
+- Status field if it changed
+
+The memory file is what makes it possible to pick up a use-case after weeks without re-discovering everything from scratch.
+
+**Step 14 — how to update this skill:**
 - New platform behavior (error shape, field constraint, task gotcha) → add detail to the relevant body section (`### query`, `### childJob`, `### Projects`, etc.), then add a one-liner to the Gotchas pre-flight list under the right category.
-- New pattern or workflow recipe → add to `## Workflow Patterns` and create a helper file in `${CLAUDE_PLUGIN_ROOT}/helpers/` if the pattern is reusable. Name it `workflow-task-<taskname>.json` (task snippet) or `reference-<pattern>.json` (full workflow). Add a row to the Helper Templates table in this file pointing to it.
+- New pattern or workflow recipe → add to `## Workflow Patterns` and, if the pattern is reusable, export the project from the platform and save it to `${CLAUDE_PLUGIN_ROOT}/helpers/assets/`. Add a row to the Helper Templates table in this file pointing to it.
 - Do NOT create a new top-level section for a single finding — put it where a builder would look when working on that topic.
 
 ---
@@ -136,6 +157,41 @@ grant_type=client_credentials&client_id={CLIENT_ID}&client_secret={CLIENT_SECRET
 ### Guide 1: Build a workflow end-to-end
 
 Follow these steps in order. Do not skip any step.
+
+---
+
+> **STOP. Before writing a single line of task JSON — run these commands.**
+>
+> The asset projects in `helpers/assets/` are real, production-tested imports. Read them first.
+> Do not guess task structure from memory. Do not copy from `helpers/create/` for task bodies.
+> `helpers/create/` is for API wrappers (project/workflow creation endpoints) only — not task JSON.
+>
+> ```bash
+> # 1. Find which asset project matches your use case
+> ls ${CLAUDE_PLUGIN_ROOT}/helpers/assets/
+>
+> # 2. Extract the workflow most similar to what you're building
+> jq '[.components[] | select(.type=="workflow")] | .[].document.name' \
+>   ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-servicenow.json
+>
+> # 3. Read its full task map — this is your reference
+> jq '[.components[] | select(.type=="workflow") | select(.document.name | test("WORKFLOW_NAME"; "i"))] | first | .document | {tasks, transitions}' \
+>   ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-servicenow.json
+>
+> # 4. Extract the specific task type you need
+> jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "TASK_NAME")] | first | .value' \
+>   ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-servicenow.json
+> ```
+>
+> Replace `vendor-servicenow.json` with whichever asset file best matches your use case:
+> - Adapter tasks (ServiceNow, Infoblox) → `vendor-servicenow.json`, `vendor-infoblox-nios-ddi.json`
+> - Network device tasks (CLI, MOP) → `vendor-cisco-ios.json`, `vendor-arista-eos.json`, `vendor-juniper-junos.json`
+> - IPAM/inventory → `vendor-netbox.json`
+> - Data transformations → `itential-platform-data-manipulation.json`
+> - Config management (RunCommandTemplate, itential_cli) → `itential-platform-configuration-management.json`
+> - LCM action workflows → `helpers/assets/lcm/lcm-vxlan-fabric-services-project.json`
+
+---
 
 **Step 0: Decompose before you build.**
 
@@ -148,12 +204,16 @@ Before writing any JSON, identify the parent/child split from the solution desig
 
 Build order is always: **children first, orchestrator last.** The orchestrator is just childJob calls to tested children — it should not contain raw adapter tasks unless there is no logical way to split.
 
-**Reference helpers for parent/child patterns:**
-- `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-child-workflow.json` — child with try-catch (always sets `taskStatus`, always completes)
-- `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-parent-workflow.json` — parent with childJob → query → evaluation branching
-- `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-childjob-loop.json` — parent + child with `data_array` loop (parallel or sequential)
+**Read a full workflow from asset projects before building any multi-workflow solution:**
+```bash
+# Parent → childJob → evaluation pattern
+jq '[.components[] | select(.type=="workflow") | select(.document.name | test("Upgrade|Runner"))] | first | .document | {name,tasks,transitions}' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
 
-Read these before building any multi-workflow solution.
+# childJob loop with data_array
+jq '[.components[] | select(.type=="workflow") | select(.document.name | test("Chunk|Loop"))] | first | .document | {name,tasks,transitions}' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/itential-platform-configuration-management.json
+```
 
 **Step 1: Find tasks.** Search `tasks.json` for the tasks you need:
 ```bash
@@ -201,7 +261,7 @@ Schema response:
 }
 ```
 
-Becomes this workflow task (use the adapter helper template as starting point):
+Becomes this workflow task (extract a real adapter task from an asset project first — e.g. `jq '[.components[].document.tasks // {} | to_entries[] | select(.value.location == "Adapter")] | first | .value' ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-servicenow.json`):
 ```json
 {
   "a1b2": {
@@ -303,13 +363,25 @@ If both success and error need to reach `workflow_end`, route error to an interm
 - [ ] Incoming variable types match task schema exactly (arrays for `to`/`cc`/`bcc`, numbers for `page`/`pageSize`, etc.)
 - [ ] No `$var` references inside nested objects (use merge/makeData)
 - [ ] merge uses `"variable"`, childJob uses `"value"`
+- [ ] No `{task:"job", variable:"x"}` in merge/childJob for workflow-internal variables — `{task:"job"}` refs add `x` to `inputSchema.required`, prompting operators for values that should be internal. Use the producing task ref instead (query→`return_data`, newVariable→`value`, makeData→`output`, merge→`merged_object`)
+- [ ] If a `query` downstream of a `childJob` returns null despite the child succeeding: check whether `"obj": "$var.<childJobId>.job_details"` is resolving — on some platform versions it is treated as a literal string. Fix: insert a `merge` task between childJob and query using `{"task": "<childJobId>", "variable": "job_details"}` in `data_to_merge`, then point `obj` to `$var.<mergeId>.merged_object` (see Guide 4)
 - [ ] childJob has `actor: "job"`, all others have `actor: "Pronghorn"`
 - [ ] `workflow_end` transition is empty `{}`
 - [ ] Canvas layout follows the vertical spacing convention — non-forked sequences on a constant-x spine, fork branches offset to `spine±264` and stay in their own column until convergence
 - [ ] No transition lines cross task nodes (the spine column is empty between a fork and its convergence point)
 - [ ] Sequential y-delta ~108px (tight grid)
+- [ ] **LCM Create actions only:** the instance-write merge task's `data_to_merge` covers every field in the resource model's `schema.required` array — missing even one field causes an instance write failure after provisioning (resources are orphaned from LCM). Read the model's `schema.required` before building the merge task: `jq '.schema.required' helpers/assets/lcm/<model>.json`
+- [ ] **ViewData manual tasks:** `view` is a top-level field; `incoming.variables` is present (even if `{}`); `displayName: "Tools"`, no `actor` field
+- [ ] **restCall downstream query:** path targets body field directly (e.g., `"access_token"`) — NOT `"response.access_token"` (restCall has no wrapper, unlike adapter tasks)
+- [ ] **childJob loop:** if child workflow has `inputSchema.required` fields beyond what each `data_array` element contains, use the forEach enrichment pattern (forEach → merge → arrayPush) to add shared fields into each element before the childJob loop; set `variables: {}` on the childJob
+- [ ] **forEach body:** `incoming` contains ONLY `data_array` (no `job_id`); loop body tasks have no external error transitions; last body task has an empty `{}` transition; `$var.job.<varName>` inside loop body instead of `$var.<taskId>.<output>`
+- [ ] **makeData with childJob-sourced merge:** if a merge task references a childJob variable, do NOT wire that merge's `merged_object` into `makeData.incoming.variables` — use `query` to extract individual values first
 
-**Complete working example:** Read `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-adapter-workflow.json` before building. It's a tested workflow (merge → adapter create → query → adapter update) with `_comment` fields explaining every decision.
+**Complete working example:** Read the ServiceNow "Create Change Request" workflow before building — it demonstrates merge → adapter create → query → adapter update with error transitions:
+```bash
+jq '[.components[] | select(.type=="workflow") | select(.document.name | test("Create Change"))] | first | .document' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-servicenow.json
+```
 
 **How the example works — what each task does and why:**
 
@@ -416,10 +488,20 @@ Always check `task-schemas.json` for the exact type of each incoming field befor
 
 ### Guide 3: Add a task to an existing workflow
 
-**Step 1:** Read the helper template for the task type:
-- Adapter task → `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-adapter.json`
-- Application task → `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-application.json`
-- childJob → `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-childjob.json`
+**Step 1:** Extract the task structure from an asset project that uses the same task type:
+```bash
+# Adapter task (e.g., ServiceNow)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.location == "Adapter")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-servicenow.json
+
+# Application task (WorkFlowEngine)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.app == "WorkFlowEngine" and .value.name != "childJob")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/itential-platform-configuration-management.json
+
+# childJob
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "childJob")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
+```
 
 **Step 2:** Fill in the fields using the mapping rules from Guide 1 Step 4.
 
@@ -473,6 +555,8 @@ The parent passes specific variables to one child workflow run.
 - `{"task": "static", "value": "validate"}` → passes the literal string `"validate"`
 - `{"task": "b2c3", "value": "return_data"}` → passes a previous task's output (preferred for runtime data)
 
+> **WARNING — `{task:"job"}` refs in childJob variables add fields to `inputSchema.required`** — same behavior as merge (see `### merge` section). Only use `{task:"job", value:"x"}` for genuine workflow inputs. For runtime data produced by earlier tasks, use `{task:"<taskId>", value:"<outVar>"}` to reference the producing task directly.
+
 > **WRONG for task output refs in childJob:**
 > `{"task": "b2c3", "variable": "return_data"}` — `"variable"` is for merge/evaluation only.
 > In childJob, ALL refs (job, static, AND task output) use `"value"`. Using `"variable"` causes `undefined.indexOf()` at job start time (P6.4.0+) — the workflow fails before any task runs.
@@ -494,6 +578,39 @@ The parent passes specific variables to one child workflow run.
 }
 ```
 Query uses flat variable names — `"taskStatus"`, NOT `"variables.job.taskStatus"`.
+
+**If the query returns null even though the childJob succeeded** — the `$var` form in `obj` may not resolve on your platform version. Use the merge+taskRef workaround:
+```
+a1a1 (childJob) → m1m1 (merge: captures job_details via taskRef) → b2b2 (query: reads merged_object)
+```
+```json
+{
+  "m1m1": {
+    "name": "merge",
+    "variables": {
+      "incoming": {
+        "data_to_merge": [
+          {"task": "a1a1", "variable": "job_details"},
+          {"task": "static", "value": {}}
+        ]
+      },
+      "outgoing": {"merged_object": null}
+    }
+  },
+  "b2b2": {
+    "name": "query",
+    "variables": {
+      "incoming": {
+        "pass_on_null": false,
+        "query": "taskStatus",
+        "obj": "$var.m1m1.merged_object"
+      },
+      "outgoing": {"return_data": "$var.job.childStatus"}
+    }
+  }
+}
+```
+The static `{}` second item is required — merge needs at least 2 items in `data_to_merge`.
 
 #### Mode B: Loop — one child per item in `data_array`
 
@@ -549,6 +666,38 @@ Each element in `data_array` becomes the child's input variables for that iterat
   }
 }
 ```
+If the query returns null (platform-version-specific `$var` resolution issue), use the same merge+taskRef workaround described above (Mode A) — capture `job_details` via `{"task": "a1a1", "variable": "job_details"}` in merge, then query `$var.m1m1.merged_object`.
+
+**Loop element completeness — required fields must be in each element (not in `variables`).**
+
+The platform validates the child workflow's `inputSchema.required` against **each element's keys only**. Static `variables` set on the childJob task are NOT counted toward satisfying required fields. If your loop elements only contain per-iteration fields (e.g., `subnet_name`, `subnet_cidr`) but the child also requires shared fields (e.g., `subscription_id`, `region`), the validation fails before any iteration runs.
+
+**Fix — forEach enrichment pattern:** enrich each element with the shared fields before the childJob loop, then set `variables: {}` on the childJob:
+
+```
+forEach (loop over elements) → merge (add shared fields to current_item) → arrayPush (append enriched element to new array)
+                                                                                    ↓ (after forEach success)
+childJob (data_array: enrichedArray, variables: {})
+```
+
+```json
+// forEach outgoing binds current_item to job var
+{"outgoing": {"current_item": "$var.job.currentElement"}}
+
+// merge combines current element + shared fields
+{"data_to_merge": [
+  {"task": "forEachId", "variable": "current_item"},
+  {"key": "subscription_id", "value": {"task": "job", "variable": "subscription_id"}},
+  {"key": "region", "value": {"task": "job", "variable": "region"}}
+]}
+// → $var.mergeId.merged_object is the enriched element
+
+// arrayPush appends to accumulator
+{"incoming": {"job_variable": "enrichedElements", "item_to_push": "$var.mergeId.merged_object"}}
+
+// childJob uses the enriched array and no static variables
+{"data_array": "$var.job.enrichedElements", "variables": {}, "loopType": "parallel"}
+```
 
 **Loop output shape** (each element is a flat spread of the child's job variables):
 ```json
@@ -570,6 +719,7 @@ Use `"[**].taskStatus"` in a query to extract one field from all iterations.
 - [ ] `variables` is `{}` when using `data_array` (loop mode)
 - [ ] Child workflow's `inputSchema.required` matches what you're passing
 - [ ] `loopType`: `""` (single), `"parallel"` (simultaneous), `"sequential"` (one at a time)
+- [ ] If a downstream `query` of a childJob returns null: the `"obj": "$var.<childJobId>.job_details"` form may not resolve on this platform version — use merge+taskRef workaround (see "Extracting single child output" above)
 
 #### Building the child workflow
 
@@ -836,6 +986,8 @@ Use the helper template: `${CLAUDE_PLUGIN_ROOT}/helpers/create/create-ops-manage
 
 ### Pull Task Catalog
 
+**`{use-case}/tasks.json` should already exist** — pulled by `/solution-arch-agent` or `/explore` during feasibility. Do not re-pull if the file exists. If missing, fetch it:
+
 ```
 GET /workflow_builder/tasks/list → save to {use-case}/tasks.json
 GET /automation-studio/apps/list → save to {use-case}/apps.json
@@ -847,7 +999,35 @@ grep -i "template" {use-case}/tasks.json
 jq '.[] | select(.app == "ConfigurationManager") | .name' {use-case}/tasks.json
 ```
 
-### Get Full Task Schemas
+### Look up task wiring in asset projects first
+
+Before fetching schemas from the API, check if an asset project already has the task wired up. If it does, you get the exact field structure for free — no API call needed.
+
+```bash
+# Does any asset project use this task? Find it by task name:
+grep -rl '"name": "TASK_NAME"' ${CLAUDE_PLUGIN_ROOT}/helpers/assets/
+
+# Extract the wired task from the matching project:
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "TASK_NAME")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/MATCHING_FILE.json
+
+# See which tasks a specific workflow uses:
+jq '[.components[] | select(.type=="workflow") | select(.document.name | test("WORKFLOW"; "i"))] | first | .document.tasks | to_entries[] | {id:.key, name:.value.name, app:.value.app}' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/MATCHING_FILE.json
+```
+
+Asset project → best match by task type:
+| Task | Best asset to check |
+|------|-------------------|
+| ServiceNow adapter tasks | `vendor-servicenow.json` |
+| Infoblox / DNS / IPAM tasks | `vendor-infoblox-nios-ddi.json` |
+| NetBox tasks | `vendor-netbox.json` |
+| itential_cli, RunCommandTemplate, MOP tasks | `itential-platform-configuration-management.json`, `vendor-cisco-ios.json` |
+| transformation (JST) | `vendor-netbox.json`, `itential-platform-data-manipulation.json` |
+| childJob, evaluation, query, newVariable | any vendor project |
+| LCM action workflow tasks | `helpers/assets/lcm/lcm-vxlan-fabric-services-project.json` |
+
+### Get Full Task Schemas (only if not found in assets)
 
 **Single task:**
 ```
@@ -878,9 +1058,10 @@ POST /automation-studio/multipleTaskDetails?dereferenceSchemas=true
 **IMPORTANT:** The `pckg` value must come from `apps.json`, NOT `tasks.json`. The names can differ (e.g., tasks.json says `ServiceNow` but apps.json says `Servicenow`).
 
 **Before fetching schemas:**
-1. Check if `{use-case}/task-schemas.json` exists — search it first
-2. Only call `multipleTaskDetails` for tasks NOT already in the local file
-3. After fetching, append to the local file
+1. Search asset projects (above) — if found, use the wired example directly
+2. Check if `{use-case}/task-schemas.json` exists — search it next
+3. Only call `multipleTaskDetails` for tasks not found in either place
+4. After fetching, append to `{use-case}/task-schemas.json`
 
 ### nodeLocation Spacing Convention
 
@@ -902,7 +1083,7 @@ Workflows are laid out **top-to-bottom (vertical)** by default — this is the I
 - **Tight y-spacing** — the canvas grid is dense; ~108px between sequential rows reads well. Don't pad to +250 or +360.
 - **Preserve Studio-arranged positions** — if an engineer has arranged a workflow in Automation Studio, treat its `nodeLocation` values as authoritative. Always read from the live export before reimporting. Never recalculate positions from scratch on a workflow that has already been arranged.
 
-Example — fork with a shared error handler (mirrors `helpers/reference/reference-adapter-workflow.json`):
+Example — fork with a shared error handler (same pattern as ServiceNow "Create Change Request" in `helpers/assets/vendor-servicenow.json`):
 ```
 workflow_start                        (x=600, y=200)
 e1a1 merge                            (x=600, y=312)
@@ -1017,6 +1198,16 @@ PUT /automation-studio/automations/{id}
 ```json
 {"update": { ...same structure as automation object... }}
 ```
+
+**Project-scoped name required on PUT.** If the workflow belongs to a project, the `name` field in the `update` body must include the `@<projectId>: ` prefix — even if the workflow was created without it:
+```json
+{"update": {"name": "@69f10abc: My Workflow", "tasks": {...}, "transitions": {...}}}
+```
+Sending the bare name (`"name": "My Workflow"`) returns `{"error": {"message": "Name must begin with '@projectId: '"}}`.
+
+Asymmetry: workflow **CREATE** (`POST /automation-studio/automations`) does NOT require the prefix — the platform applies it when the workflow is added to a project. But **PUT-update** always requires it for project-member workflows.
+
+Always read the workflow before updating (`GET /automation-studio/workflows/detailed/{name}` or export the project) to get the current scoped name. See [Rule 24](#) and [issue #55](https://github.com/itential/builder-skills/issues/55).
 
 ### Task Fields
 
@@ -1194,9 +1385,24 @@ Build an object from multiple resolved values. Primary workaround for `$var` not
 **IMPORTANT: The field is `"variable"` NOT `"value"`** in the reference objects inside `data_to_merge`.
 
 **Reference format in `data_to_merge`:**
-- `{"task": "job", "variable": "varName"}` — pull from a job variable
+- `{"task": "job", "variable": "varName"}` — pull from a **user-supplied** job variable (input to the workflow)
 - `{"task": "static", "variable": "literalValue"}` — literal value
 - `{"task": "taskId", "variable": "outVar"}` — pull from a previous task's output
+
+> **WARNING — `{task:"job"}` references add fields to `inputSchema.required`.**
+> The platform scans every `data_to_merge` entry in merge tasks (and every `variables` entry in childJob) for `{task:"job"}` references and automatically adds that variable name to `inputSchema.required`. This means using `{task:"job", variable:"changeId"}` for a variable that was produced internally by a query task will prompt operators to supply `changeId` as a workflow input — even though it should never come from the user.
+>
+> **Rule:** only use `{task:"job"}` for variables that are genuine workflow inputs. For anything produced by an earlier task, use the producing task's ref directly:
+>
+> | Value source | Correct ref form |
+> |---|---|
+> | User workflow input | `{"task": "job", "variable": "x"}` |
+> | `query` output | `{"task": "queryTaskId", "variable": "return_data"}` |
+> | `merge` output | `{"task": "mergeTaskId", "variable": "merged_object"}` |
+> | `newVariable` output | `{"task": "newVarTaskId", "variable": "value"}` |
+> | `makeData` output | `{"task": "makeDataTaskId", "variable": "output"}` |
+> | `parse` output | `{"task": "parseTaskId", "variable": "return_data"}` |
+> | adapter task output | `{"task": "adapterTaskId", "variable": "result"}` |
 
 ```json
 {
@@ -1301,7 +1507,11 @@ Returns `true`/`false`. Invalid operators silently return `false`. Use this to v
 
 ### childJob
 
-Run another workflow as a sub-job. **Use helper template** `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-childjob.json`.
+Run another workflow as a sub-job. **Read a live childJob example first:**
+```bash
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "childJob")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
+```
 
 **Critical differences from normal tasks:**
 - **`actor` MUST be `"job"`** — not `"Pronghorn"`
@@ -1355,7 +1565,7 @@ Use flat variable names, NOT nested paths. For loop output: `"[**].fieldName"`.
 
 Iterate over an array. **Deprecated** — prefer `childJob` with `loopType`. Still common in existing workflows.
 
-**Incoming:** `data_array` (array)
+**Incoming:** `data_array` (array) — **ONLY `data_array`**. Do NOT include `job_id` in incoming — it triggers errors.
 **Outgoing:** `current_item` (any)
 
 **Transition pattern (critical):**
@@ -1363,9 +1573,27 @@ Iterate over an array. **Deprecated** — prefer `childJob` with `loopType`. Sti
 forEach --state:loop--> firstBodyTask -> ... -> lastBodyTask --(empty {})
 forEach --state:success--> nextTaskAfterLoop
 ```
-The last task in the loop body has an **empty transition `{}`**. Do NOT connect it back to forEach.
 
-**Nested forEach — `$var.<taskId>.<output>` does NOT resolve inside nested loop bodies.** String references like `$var.n01.current_item` silently resolve to `null` when used inside an inner forEach body. Use `$var.job.<varName>` (the forEach's outgoing job variable binding) instead. This applies to all reference styles — even taskRef objects `{"task": "outerTask", "variable": "current_item"}` are unreliable inside a nested body. Always bind forEach outputs to job variables and reference those inside nested bodies.
+#### forEach constraints (all four are required)
+
+1. **`incoming` must only contain `data_array`** — do NOT include `job_id` or any other field. Adding `job_id` causes errors at runtime.
+
+2. **`$var.<taskId>.<output>` does NOT resolve inside the loop body** — string references like `$var.n01.current_item` silently resolve to `null` inside a forEach body. Use `$var.job.<varName>` instead (bind the forEach's outgoing to a job variable and reference that). This applies to ALL reference styles — even taskRef objects `{"task": "outerTask", "variable": "current_item"}` are unreliable inside a nested body.
+
+3. **Loop body tasks cannot transition to tasks outside the loop** — no error transitions from loop body tasks to external error handlers. The `forEach` task itself handles exit via `state: "error"` on the forEach transition. Handle errors within the loop body, then let the forEach's error transition route out.
+
+4. **The last loop body task signals loop-back with an empty `{}` transition** — do NOT add an explicit loop-back target pointing to forEach.
+
+```json
+"transitions": {
+  "forEachTaskId": {
+    "firstBodyTask": {"type": "standard", "state": "loop"},
+    "nextTaskAfterLoop": {"type": "standard", "state": "success"},
+    "errorHandlerTask": {"type": "standard", "state": "error"}
+  },
+  "lastBodyTask": {}
+}
+```
 
 ### newVariable
 
@@ -1395,6 +1623,13 @@ Construct data with `<!var!>` variable substitution.
 ```
 merge (build variables object) → makeData (use $var.taskId.merged_object as variables)
 ```
+
+> **WARNING — `makeData.incoming.variables` cannot use `$var` references to a merge that sources childJob output.**
+> When a `merge` task's `data_to_merge` contains a childJob reference (e.g., `{"task": "childJobId", "variable": "job_details"}`), the platform cannot compile `$var.<mergeId>.merged_object` as a `taskRef` for `makeData.incoming.variables` — it is stored as a literal static string. Template substitution then operates on the literal string and emits unresolved placeholders.
+>
+> `query.incoming.obj` does NOT have this limitation — it resolves `$var.<mergeId>.merged_object` correctly even when the merge references childJob output.
+>
+> **Fix:** extract individual values from the childJob-sourced merge using `query` tasks, then pass those resolved scalars to makeData via a second merge (that contains only non-childJob refs). Do NOT feed a childJob-sourced merge directly into makeData's `variables`.
 
 ### delay
 
@@ -1441,6 +1676,16 @@ Multi-way branching based on conditions. Unlike `evaluation` (binary true/false)
 ### restCall
 
 Make external HTTP calls from within a workflow. Use when calling APIs not exposed through adapters.
+
+**Response shape — no wrapper.** `restCall` returns the **already-parsed JSON body directly** as the outgoing value. There is no `response` or `result` wrapper. Query paths target body fields directly:
+
+```
+Correct:   "query": "access_token"
+Wrong:     "query": "response.access_token"   ← no response wrapper
+Wrong:     "query": "result.access_token"     ← no result wrapper
+```
+
+This is the opposite of adapter tasks (e.g., `genericAdapterRequest`), which always wrap the upstream response in `{response, headers, metrics}`. Don't cross-apply the adapter query paths to `restCall` output — you'll get null every time.
 
 ### modify
 
@@ -1544,7 +1789,11 @@ Pre-Check (RunCommandTemplate child)
   → runTemplatesDiff (compare pre vs post)
 ```
 
-Read `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-push-config-workflow.json` and `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-command-template-runner.json` before building any config push delivery.
+Read the Arista EOS "Push Configuration to Device - IAG" and "Command Template Runner" workflows before building any config push delivery:
+```bash
+jq '[.components[] | select(.type=="workflow") | select(.document.name | test("Push Config|Command Template"))] | .[].document | {name:.name, tasks:.tasks, transitions:.transitions}' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-arista-eos.json
+```
 
 ### Create a Command Template
 
@@ -1858,12 +2107,18 @@ Every adapter task needs both success and error transitions. Route errors to an 
 ```
 `view`, `taskVersion: 2`, and `hostApp` are all **required** — omitting any one causes "Manual Tasks require 'view' key" draft error.
 
-**Use helper template:** `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-viewdata-pattern.json` (full reference workflow showing makeData → ViewData → success/failure branches)
+**Read a live ViewData example** from the Cisco IOS upgrade workflow — it shows makeData → ViewData → success/failure branches in production:
+```bash
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "ViewData")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
+```
 
-Three rules that cause `"Manual Tasks require 'view' key"` draft validation errors if missed:
-1. `view` is a **top-level** field (sibling of `name`, `type`, `app`) — NOT inside `variables`
-2. `variables` block has **ONLY** `incoming` and `outgoing` — no `error` or `decorators` (those are for automatic tasks only)
-3. `displayName` must be `"Tools"` and there is **no `actor` field** on manual tasks
+Three rules that cause draft validation errors if missed:
+1. `view` is a **top-level** field (sibling of `name`, `type`, `app`) — NOT inside `variables`. Missing it → `"Manual Tasks require 'view' key with path to task view"`.
+2. `incoming.variables` **MUST be present** (value can be `{}` if unused). Missing it → `"Input: 'variables' is not defined in task model"`.
+3. `displayName` must be `"Tools"` and `actor` must be `null` (no actor field) on manual tasks.
+
+Note: production assets include `"error": ""` and `"decorators": []` in the variables block on ViewData tasks — these are added by Studio on export and are harmless. You do not need to add or remove them.
 
 ```json
 {
@@ -1893,7 +2148,11 @@ Three rules that cause `"Manual Tasks require 'view' key"` draft validation erro
 
 Use `ViewHTML` when you need to display formatted HTML to an operator during a workflow — for reports, tables, or styled summaries. Same manual task rules as ViewData apply.
 
-**Use helper template:** `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-viewhtml-pattern.json` (full reference workflow showing ViewHTML → success/failure branches)
+**Read a live ViewHTML example:**
+```bash
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "ViewHTML")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
+```
 
 Key differences from ViewData:
 1. `view` is `/workflow_engine/task/ViewHTML`
@@ -2081,7 +2340,9 @@ The `revert` transition moves execution back to a previous task, allowing the us
 
 ## Helper Templates
 
-**Read the matching helper before building anything.** Helpers have the correct JSON structure. Modify them for your use case — do NOT build JSON from scratch.
+**Two separate concerns — don't mix them:**
+- **API wrappers** (project, workflow, template, form creation) → use `helpers/create/` scaffolds below. These are POST body wrappers — correct structure, required fields.
+- **Task JSON inside a workflow** → extract from `helpers/assets/` using jq (see Guide 1 STOP block). Do NOT use `helpers/create/` files for task bodies — they are scaffold stubs, not task examples.
 
 ### Scaffolds — start from these
 
@@ -2104,44 +2365,77 @@ Read these first. They have the correct wrapper, required fields, and structure.
 | Add assets to a project | `${CLAUDE_PLUGIN_ROOT}/helpers/operations/add-components-to-project.json` | `POST /projects/{id}/components/add` |
 | Update project membership | `${CLAUDE_PLUGIN_ROOT}/helpers/update/update-project-members.json` | `PATCH /projects/{id}` |
 
-### Task templates — embed these in your workflow
+### Task templates — extract from asset projects
 
-For every task you add to a workflow — whether building new or modifying existing — read the matching template first and fill in the fields. Do not write task JSON from scratch.
+Do not write task JSON from scratch. For every task type, extract a real example from an asset project and adapt it. Use the jq commands below — they work against the project files in `${CLAUDE_PLUGIN_ROOT}/helpers/assets/`.
 
-| Task type | Read this helper | Key fields to set |
-|-----------|------------------|-------------------|
-| Application task (WorkFlowEngine, TemplateBuilder, etc.) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-application.json` | `app`, `name`, `canvasName`, incoming/outgoing from schema |
-| Adapter task (ServiceNow, etc.) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-adapter.json` | `app`/`locationType` from apps.json, add `adapter_id`, add error transition |
-| childJob task | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-childjob.json` | `actor: "job"`, `task: ""`, variables use `{"task","value"}` syntax |
-| evaluation / branching | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-evalresult.json` | `operand_1`, `operator`, `operand_2` — both success AND failure transitions required |
-| ViewData (manual approval) | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-viewdata-pattern.json` | `view` top-level, `displayName: "Tools"`, no `actor` field, NO `error`/`decorators` in variables |
-| ViewHTML (manual HTML display) | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-viewhtml-pattern.json` | `body` is HTML with `<!var!>` placeholders; `variables` is a plain key-value object (not a `$var` ref) |
-| newVariable | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-newvariable.json` | `name`, `value` — use for error handlers and status flags |
-| query / extract data | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-query.json` | `query` (dot-path), `obj` ($var ref), `pass_on_null` |
-| transformation (JST) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-transformation.json` | `tr_id`, `variableMap`, `options` |
-| getTime | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-gettime.json` | `timezone`, `format` |
-| itential_cli (config push via IAG) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-itential-cli.json` | `_hosts` (device array), `command` (CLI command array), app: `AGManager` |
-| RunCommandTemplate (MOP pre/post check) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-run-command-template.json` | `template`, `variables`, `devices` |
-| viewTemplateResults (MOP review) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-view-template-results.json` | `mop_template_results` — manual task, pauses for operator |
-| reattempt (MOP retry) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-reattempt.json` | `job_id`, `attemptID`, `minutes`, `attempts` |
-| runTemplatesDiff (MOP pre vs post) | `${CLAUDE_PLUGIN_ROOT}/helpers/tasks/workflow-task-run-templates-diff.json` | `pre`, `post` — manual task, shows diff to operator |
+```bash
+# Adapter task (ServiceNow, Infoblox, etc.)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.location == "Adapter")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-servicenow.json
 
-### Reference workflows — study these patterns
+# Application task (WorkFlowEngine — getTime, newVariable, query, evaluation, transformation, merge, makeData)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.app == "WorkFlowEngine" and .value.name == "TASK_NAME")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/itential-platform-configuration-management.json
 
-These are complete, tested workflows. Read them to understand how tasks connect, how data flows, and how error handling works. Each task has a `_comment` field explaining why it's there.
+# childJob
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "childJob")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
 
-| Pattern | Read this helper | What it teaches |
-|---------|------------------|-----------------|
-| Adapter workflow with merge + query + error handling | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-adapter-workflow.json` | merge builds objects, adapter tasks need error transitions, query extracts from adapter response, newVariable as error handler |
-| childJob loop (parent + child) | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-childjob-loop.json` | Has both parent and child workflows. data_array input, parallel/sequential, extracting loop results, try-catch in child |
-| childJob with evaluation (parent orchestrator) | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-parent-workflow.json` | childJob → query → evaluation pattern for checking child success/failure |
-| merge → makeData pattern | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-merge-makedata.json` | Building template variables with merge, then string substitution with makeData |
-| Child with makeData/query/merge | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-child-workflow.json` | Data transformation patterns inside a child workflow |
-| Config push to device (standard pattern) | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-push-config-workflow.json` | renderJinjaTemplate → dry run ViewData → itential_cli (dry) → commit ViewData → itential_cli (commit) |
-| Pre/post check with reattempt (standard pattern) | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-command-template-runner.json` | RunCommandTemplate → viewTemplateResults → evaluation → reattempt loop — use as child for pre-check and post-check |
-| Error handling patterns | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-error-handling-workflow.json` | Try-catch, error flags, escalation paths |
-| Form → OM automation trigger wiring | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-form-to-automation.json` | JSON form → automation → manual trigger end-to-end wiring |
-| IAG gateway service call | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-gateway-service-workflow.json` | Calling IAG services from a workflow via GatewayManager |
-| LCM lifecycle (create + delete) | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-lcm-lifecycle.json` | LCM create/delete workflow pattern, instance object output |
-| Notification workflow | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-notification-workflow.json` | Email/notification patterns |
-| Per-device sendCommand scan | `${CLAUDE_PLUGIN_ROOT}/helpers/reference/reference-sendcommand-workflow.json` | buildInventoryFilter → forEach → newVariable+push array build → sendCommand → response guard → pattern match → matched/errored/skipped classification. Demonstrates constant-holder pattern for evaluation operands and `$var.job.*` usage inside loop body. |
+# evaluation / branching
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "evaluation")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
+
+# transformation (JST)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "transformation")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-netbox.json
+
+# RunCommandTemplate / viewTemplateResults / reattempt / runTemplatesDiff (MOP tasks)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "TASK_NAME")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/itential-platform-configuration-management.json
+
+# itential_cli (config push via IAG)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "itential_cli")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-arista-eos.json
+
+# ViewData / ViewHTML (manual tasks)
+jq '[.components[].document.tasks // {} | to_entries[] | select(.value.name == "ViewData")] | first | .value' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/vendor-cisco-ios.json
+```
+
+Key fields to verify after extracting (see body sections above for full rules per task type):
+
+| Task type | Must-check fields |
+|-----------|-------------------|
+| Adapter | `app`/`locationType` from apps.json (not tasks.json), `adapter_id`, error transition |
+| childJob | `actor: "job"`, `task: ""`, variables use `{"task","value"}` not `$var` |
+| evaluation | `evaluation_groups[]`, `all_true_flag`, both success AND failure transitions |
+| transformation | `tr_id`, `variableMap` keys match transformation's `incoming` schema |
+| ViewData / ViewHTML | `view` is top-level (not inside `variables`), `displayName: "Tools"`, no `actor`, no `error`/`decorators` |
+| Manual tasks (any) | `type: "manual"`, `taskVersion: 2`, `hostApp` required |
+
+### Reference workflows — read from asset projects
+
+Real, production-tested workflows. Use the jq commands to extract and study them before building.
+
+| Pattern | Asset file | jq filter |
+|---------|-----------|-----------|
+| Adapter workflow: merge → create → query → update + error handling | `vendor-servicenow.json` | `select(.document.name \| test("Create Change"))` |
+| childJob orchestrator + evaluation branching | `vendor-cisco-ios.json` | `select(.document.name \| test("IOS Upgrade"))` |
+| childJob loop with data_array (parallel/sequential) | `vendor-cisco-ios.json` | `select(.document.name \| test("Upgrade\|Runner"))` |
+| Config push: renderJinja → dry-run ViewData → itential_cli → commit | `vendor-arista-eos.json` | `select(.document.name \| test("Push Config"))` |
+| Pre/post MOP check: RunCommandTemplate → viewTemplateResults → evaluation → reattempt | `itential-platform-configuration-management.json` | `select(.document.name \| test("Command Template Runner"))` |
+| IPAM CRUD (adapter + transformation + error) | `vendor-infoblox-nios-ddi.json` | `select(.document.name \| test("Create Network\|Assign Next"))` |
+| ITSM ticket + update (ServiceNow) | `vendor-servicenow.json` | `select(.document.name \| test("Create Incident"))` |
+| LCM action workflow (must output `instance`) | `lcm/lcm-vxlan-fabric-services-project.json` | `select(.document.name \| test("Create\|Delete"))` — note: this file uses `.data.project.components[]` |
+| Email/notification | `itential-platform-email.json` | `select(.document.name \| test("Email"))` |
+
+```bash
+# General pattern to read any workflow by name from an asset project:
+jq '[.components[] | select(.type=="workflow") | select(.document.name | test("PATTERN"; "i"))] | first | .document | {name:.name, tasks:.tasks, transitions:.transitions}' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/ASSET_FILE.json
+
+# For the LCM project (different wrapper):
+jq '[.data.project.components[] | select(.type=="workflow") | select(.document.name | test("PATTERN"; "i"))] | first | .document | {name:.name, tasks:.tasks, transitions:.transitions}' \
+  ${CLAUDE_PLUGIN_ROOT}/helpers/assets/lcm/lcm-vxlan-fabric-services-project.json
+```
