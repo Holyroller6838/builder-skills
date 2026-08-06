@@ -1,0 +1,45 @@
+{
+  "automation": {
+    "name": "EOS A/B Upgrade — Single Device",
+    "description": "Generic, reusable per-side subworkflow: GSHUT drain and confirm convergence, then stage/activate/reload the target image. Called twice by the orchestrator, once per side, with `side` as an input rather than duplicating this workflow. Task graph is a scaffold pending task wiring at Build time — see docs/itential-task-map.md, services/eos_upgrade/maintenance.py, and services/eos_upgrade/upgrade.py.",
+    "type": "automation",
+    "canvasVersion": 3,
+    "encodingVersion": 1,
+    "font_size": 12,
+    "tasks": {
+      "workflow_start": {
+        "name": "workflow_start",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 200 }
+      },
+      "workflow_end": {
+        "name": "workflow_end",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 800 }
+      }
+    },
+    "transitions": {
+      "workflow_start": {},
+      "workflow_end": {}
+    },
+    "groups": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device": { "type": "string", "description": "Hostname/inventory identifier of the side being upgraded" },
+        "peer_device": { "type": "string", "description": "Hostname/inventory identifier of the other side, now carrying full traffic" },
+        "side": { "type": "string", "enum": ["A", "B"] },
+        "target_version": { "type": "string" },
+        "image_filename": { "type": "string" }
+      },
+      "required": ["device", "peer_device", "side", "target_version", "image_filename"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "drain_result": { "type": "object", "description": "See services/eos_upgrade/models.py:DrainResult" },
+        "upgrade_result": { "type": "object", "description": "See services/eos_upgrade/models.py:UpgradeResult" }
+      }
+    }
+  }
+}

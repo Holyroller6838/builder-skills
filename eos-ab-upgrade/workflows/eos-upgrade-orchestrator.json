@@ -1,0 +1,46 @@
+{
+  "automation": {
+    "name": "EOS A/B Upgrade Orchestrator",
+    "description": "Top-level orchestrator for an Arista EOS A/B redundant-pair upgrade: precheck, GSHUT drain + upgrade + validate Side A, operator approval gate, drain + upgrade + validate Side B, unconditional restore, per-side rollback on failure, evidence report. Task graph is a scaffold pending task wiring at Build time against the live platform's tasks.json — see docs/itential-task-map.md.",
+    "type": "automation",
+    "canvasVersion": 3,
+    "encodingVersion": 1,
+    "font_size": 12,
+    "tasks": {
+      "workflow_start": {
+        "name": "workflow_start",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 200 }
+      },
+      "workflow_end": {
+        "name": "workflow_end",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1600 }
+      }
+    },
+    "transitions": {
+      "workflow_start": {},
+      "workflow_end": {}
+    },
+    "groups": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pair_id": { "type": "string", "description": "Identifier for the redundant pair being upgraded" },
+        "side_a_device": { "type": "string", "description": "Hostname/inventory identifier of Side A" },
+        "side_b_device": { "type": "string", "description": "Hostname/inventory identifier of Side B" },
+        "target_version": { "type": "string", "description": "Target EOS version, e.g. 4.31.1M" },
+        "image_filename": { "type": "string", "description": "Target EOS image filename in the image repository" },
+        "batch_strategy": { "type": "string", "enum": ["single", "sequential", "rolling", "parallel"], "description": "See spec §8 — governs cross-pair concurrency, not intra-pair A/B order" }
+      },
+      "required": ["pair_id", "side_a_device", "side_b_device", "target_version", "image_filename"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "outcome": { "type": "string", "enum": ["complete", "rolled_back", "halted_awaiting_approval", "failed"] },
+        "report": { "type": "object", "description": "Evidence report — see services/eos_upgrade/reporting.py:to_dict()" }
+      }
+    }
+  }
+}

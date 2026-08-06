@@ -1,0 +1,46 @@
+{
+  "automation": {
+    "name": "EOS A/B Upgrade — Pre-Check",
+    "description": "Pair-level pre-check for the EOS A/B upgrade: confirm reachability, supported source version, redundancy health, and GSHUT eligibility on both sides; backup both configs. Called once per pair before either side is touched. Task graph is a scaffold pending task wiring at Build time — see docs/itential-task-map.md and services/eos_upgrade/precheck.py.",
+    "type": "automation",
+    "canvasVersion": 3,
+    "encodingVersion": 1,
+    "font_size": 12,
+    "tasks": {
+      "workflow_start": {
+        "name": "workflow_start",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 200 }
+      },
+      "workflow_end": {
+        "name": "workflow_end",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 700 }
+      }
+    },
+    "transitions": {
+      "workflow_start": {},
+      "workflow_end": {}
+    },
+    "groups": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "side_a_device": { "type": "string" },
+        "side_b_device": { "type": "string" },
+        "target_version": { "type": "string" }
+      },
+      "required": ["side_a_device", "side_b_device", "target_version"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "pre_check_passed": { "type": "boolean" },
+        "details": {
+          "type": "object",
+          "description": "Per-check results and backup IDs — see services/eos_upgrade/precheck.py:run_pre_check()"
+        }
+      }
+    }
+  }
+}

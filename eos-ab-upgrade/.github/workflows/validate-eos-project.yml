@@ -1,0 +1,38 @@
+name: Validate EOS A/B Upgrade Project
+
+on:
+  push:
+    paths:
+      - "eos-ab-upgrade/**"
+  pull_request:
+    paths:
+      - "eos-ab-upgrade/**"
+
+jobs:
+  test-python:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: eos-ab-upgrade
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check services tests
+      - run: pytest -v
+
+  validate-workflow-json:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: eos-ab-upgrade
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JSON syntax
+        run: |
+          for f in workflows/*.json; do
+            echo "Checking $f"
+            python3 -m json.tool "$f" > /dev/null
+          done
