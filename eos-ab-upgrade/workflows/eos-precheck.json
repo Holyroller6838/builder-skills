@@ -1,7 +1,7 @@
 {
   "automation": {
-    "name": "EOS A/B Upgrade — Pre-Check",
-    "description": "Pair-level pre-check for the EOS A/B upgrade: confirm reachability, supported source version, redundancy health, and GSHUT eligibility on both sides; backup both configs. Called once per pair before either side is touched. Task graph is a scaffold pending task wiring at Build time — see docs/itential-task-map.md and services/eos_upgrade/precheck.py.",
+    "name": "EOS A/B Upgrade — Pre-Check (MVP1, read-only)",
+    "description": "MVP1 read-only pre-check for the EOS A/B upgrade. INTEGRATION DRAFT — this workflow will NOT import successfully into a real Itential platform as-is: every task node whose app is \"INTEGRATION_PLACEHOLDER\" uses a sentinel value because no verified Device Broker generic-dispatch task exists anywhere in this repo (see MVP1-INTEGRATION.md and docs/itential-task-map.md). Only the 'Evaluate pair readiness' node (GatewayManager/runService) reuses a verified real task pattern from helpers/assets/vendor-juniper-junos.json. Does not implement GSHUT, config changes, image installation, reload, backup, or rollback.",
     "type": "automation",
     "canvasVersion": 3,
     "encodingVersion": 1,
@@ -10,35 +10,334 @@
       "workflow_start": {
         "name": "workflow_start",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 200 }
+        "nodeLocation": { "x": 600, "y": 120 }
+      },
+      "0001": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Validate Request",
+        "summary": "Validate Request",
+        "description": "PLACEHOLDER — confirm whether the workflow's own inputSchema.required is sufficient, or whether a dedicated condition/validation task is needed for pair-level checks (e.g. side_a_device != side_b_device) beyond what JSON Schema alone expresses.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {
+            "pair_id": "$var.job.pair_id",
+            "side_a_device": "$var.job.side_a_device",
+            "side_b_device": "$var.job.side_b_device",
+            "target_version": "$var.job.target_version"
+          },
+          "outgoing": { "valid": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 240 }
+      },
+      "0002": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Resolve Side A",
+        "summary": "Resolve Side A",
+        "description": "PLACEHOLDER — verify the real Inventory/Device Broker lookup task (see /itential-inventory skill) that resolves a device identifier into a complete device object {hostname, management_ip, adapter_id, source_version}. This is our own contract (see services/eos_upgrade/device_broker.py:device_from_record) — Itential's real device object field names are unverified.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device_identifier": "$var.job.side_a_device" },
+          "outgoing": { "side_a_record": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 360 }
+      },
+      "0003": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Resolve Side B",
+        "summary": "Resolve Side B",
+        "description": "PLACEHOLDER — same resolution as Resolve Side A (0002), applied to Side B.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device_identifier": "$var.job.side_b_device" },
+          "outgoing": { "side_b_record": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 480 }
+      },
+      "0004": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Check Side A connectivity",
+        "summary": "Check Side A connectivity",
+        "description": "PLACEHOLDER — verify the real Device Broker generic-dispatch task/schema (AGENTS.md Key Rule 10's genericAdapterRequest is the closest documented lead, not lab-verified). Resolve the adapter app type name / adapter_id from the lab's apps.json / adapters.json, not from this file.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device": "$var.0002.side_a_record" },
+          "outgoing": { "side_a_reachable": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 600 }
+      },
+      "0005": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Check Side B connectivity",
+        "summary": "Check Side B connectivity",
+        "description": "PLACEHOLDER — same as Check Side A connectivity (0004), applied to Side B.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device": "$var.0003.side_b_record" },
+          "outgoing": { "side_b_reachable": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 720 }
+      },
+      "0006": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Collect EOS versions",
+        "summary": "Collect EOS versions",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0004's note). Output must supply, per side, at minimum the fields services/eos_upgrade/precheck.py expects in facts: version, interface_capacity_headroom_pct, interfaces_down — these field names are OUR contract, unverified against the real adapter's response shape (see docs/device-broker-map.md).",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {
+            "side_a_device": "$var.0002.side_a_record",
+            "side_b_device": "$var.0003.side_b_record"
+          },
+          "outgoing": { "side_a_facts": "", "side_b_facts": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 840 }
+      },
+      "0007": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Collect MLAG status",
+        "summary": "Collect MLAG status",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0004's note). Output feeds check_redundancy_healthy()'s expected peer_state shape: {healthy: bool} per side — our contract, unverified.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {
+            "side_a_device": "$var.0002.side_a_record",
+            "side_b_device": "$var.0003.side_b_record"
+          },
+          "outgoing": { "side_a_peer_state": "", "side_b_peer_state": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 960 }
+      },
+      "0008": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Collect BGP summaries",
+        "summary": "Collect BGP summaries",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0004's note). This data is evidence/audit-trail only for Generate evidence (000b) — it does not feed any pass/fail gate in services/eos_upgrade/precheck.py, since the approved spec's Pre-Check phase doesn't define a BGP-summary gating rule.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {
+            "side_a_device": "$var.0002.side_a_record",
+            "side_b_device": "$var.0003.side_b_record"
+          },
+          "outgoing": { "side_a_bgp_summary": "", "side_b_bgp_summary": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1080 }
+      },
+      "0009": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Collect interface status",
+        "summary": "Collect interface status",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0004's note). Output feeds the interfaces_down field expected inside each side's facts (see 0006's note).",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {
+            "side_a_device": "$var.0002.side_a_record",
+            "side_b_device": "$var.0003.side_b_record"
+          },
+          "outgoing": { "side_a_interfaces": "", "side_b_interfaces": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1200 }
+      },
+      "000a": {
+        "name": "runService",
+        "canvasName": "Evaluate pair readiness",
+        "summary": "Evaluate pair readiness",
+        "description": "Calls the eos-precheck IAG service (services/eos_upgrade/iag_entrypoint.py via iag/eos-precheck-service.yaml), which evaluates already-collected facts read-only — it does not call Device Broker itself. Reuses the verified real runService/GatewayManager task shape from helpers/assets/vendor-juniper-junos.json. UNVERIFIED: clusterId's real value, and how params.side_a/side_b get assembled — per AGENTS.md Key Rule 8, $var references don't resolve inside nested object values, so a merge/makeData task is likely needed immediately before this node to build the nested side_a/side_b objects from 0002/0003/0006/0007/0009's outputs before they can be passed here.",
+        "location": "Application",
+        "locationType": null,
+        "app": "GatewayManager",
+        "type": "automatic",
+        "displayName": "GatewayManager",
+        "variables": {
+          "incoming": {
+            "serviceName": "eos-precheck",
+            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
+            "params": {
+              "pair_id": "$var.job.pair_id",
+              "target_version": "$var.job.target_version",
+              "side_a": "PLACEHOLDER — requires an upstream merge/makeData task per AGENTS.md Key Rule 8; see description",
+              "side_b": "PLACEHOLDER — requires an upstream merge/makeData task per AGENTS.md Key Rule 8; see description"
+            }
+          },
+          "outgoing": { "result": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1320 }
+      },
+      "000b": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Generate evidence",
+        "summary": "Generate evidence",
+        "description": "PLACEHOLDER — 000a's result is already the full evidence object (see services/eos_upgrade/precheck.py:build_precheck_evidence). This node's real job is to expose it as the workflow's job output (outputSchema.evidence) — verify whether that's a plain variable-mapping task or a dedicated task type.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "evaluation_result": "$var.000a.result" },
+          "outgoing": { "evidence": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1440 }
+      },
+      "000c": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Handle Pre-Check Error",
+        "summary": "Handle Pre-Check Error",
+        "description": "Added beyond the requested 12 steps per AGENTS.md Key Rule 19/21: every external/adapter-calling task needs an error transition or the job gets stuck with 'no available transitions'. PLACEHOLDER — verify the real error-status task (e.g. a newVariable-style task per Key Rule 21) that produces a halted/error evidence object for Generate evidence's shape.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {},
+          "outgoing": { "evidence": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 1000, "y": 900 }
       },
       "workflow_end": {
         "name": "workflow_end",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 700 }
+        "nodeLocation": { "x": 600, "y": 1560 }
       }
     },
     "transitions": {
-      "workflow_start": {},
+      "workflow_start": { "0001": { "state": "success", "type": "standard" } },
+      "0001": { "0002": { "state": "success", "type": "standard" } },
+      "0002": {
+        "0003": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "0003": {
+        "0004": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "0004": {
+        "0005": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "0005": {
+        "0006": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "0006": {
+        "0007": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "0007": {
+        "0008": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "0008": {
+        "0009": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "0009": {
+        "000a": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "000a": {
+        "000b": { "state": "success", "type": "standard" },
+        "000c": { "state": "error", "type": "standard" }
+      },
+      "000b": { "workflow_end": { "state": "success", "type": "standard" } },
+      "000c": { "workflow_end": { "state": "success", "type": "standard" } },
       "workflow_end": {}
     },
     "groups": [],
     "inputSchema": {
       "type": "object",
       "properties": {
-        "side_a_device": { "type": "string" },
-        "side_b_device": { "type": "string" },
-        "target_version": { "type": "string" }
+        "pair_id": { "type": "string" },
+        "side_a_device": {
+          "type": "string",
+          "description": "Device identifier for Resolve Side A to look up. PLACEHOLDER — confirm whether Itential's real device reference at this boundary is a bare identifier (as assumed here) or already a full device object."
+        },
+        "side_b_device": {
+          "type": "string",
+          "description": "Device identifier for Resolve Side B to look up. Same caveat as side_a_device."
+        },
+        "target_version": { "type": "string", "description": "Target EOS version, e.g. 4.31.1M" }
       },
       "required": ["side_a_device", "side_b_device", "target_version"]
     },
     "outputSchema": {
       "type": "object",
       "properties": {
-        "pre_check_passed": { "type": "boolean" },
-        "details": {
+        "evidence": {
           "type": "object",
-          "description": "Per-check results and backup IDs — see services/eos_upgrade/precheck.py:run_pre_check()"
+          "description": "See services/eos_upgrade/precheck.py:build_precheck_evidence() — {pair_id, side_a_hostname, side_b_hostname, target_version, passed, details, generated_at}"
         }
       }
     }

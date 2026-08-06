@@ -4,9 +4,9 @@
 
 | Phase | Capability category | Likely task family (to confirm) | Wired in |
 |---|---|---|---|
-| Pre-Check | Device Broker: get facts | Device Broker generic action task | `eos-precheck.json` |
-| Pre-Check | Device Broker: config backup | Configuration Manager backup task | `eos-precheck.json` |
-| Pre-Check | Python Action: GSHUT eligibility | Python Action / IAG Python service task | `eos-precheck.json` |
+| Pre-Check (collection) | Device Broker: get facts, peer/MLAG/BGP/interface state | Device Broker generic action task(s) | `eos-precheck.json` nodes `0002`-`0009` (all `INTEGRATION_PLACEHOLDER`) |
+| Pre-Check | Device Broker: config backup | **Out of scope for MVP1** — `run_pre_check()` defaults to `include_backup=False`, `CollectedFactsDeviceBrokerClient.backup_config()` raises `NotImplementedError` | not wired |
+| Pre-Check (evaluation) | Python Action: evaluate collected facts | **Resolved for MVP1:** `GatewayManager`/`runService` calling the `eos-precheck` IAG service (verified pattern, reused from `helpers/assets/vendor-juniper-junos.json`) | `eos-precheck.json` node `000a`, `iag/eos-precheck-service.yaml` |
 | GSHUT Drain (A/B) | Device Broker: push GSHUT config | Device Broker generic action task | `eos-upgrade-single-device.json` |
 | GSHUT Drain (A/B) | Python Action: convergence polling | Python Action / IAG Python service task | `eos-upgrade-single-device.json` |
 | Upgrade (A/B) | Device Broker: stage image, set boot, reload | Device Broker generic action task(s) | `eos-upgrade-single-device.json` |

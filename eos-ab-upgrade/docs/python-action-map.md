@@ -4,7 +4,9 @@ Maps each `services/eos_upgrade` module to the workflow phase(s) that invoke it 
 
 | Module | Function(s) | Invoked from | Phase | Returns |
 |---|---|---|---|---|
-| `precheck.py` | `run_pre_check()` | `eos-precheck.json` | Pre-Check | `(passed: bool, details: dict)` — reachability, source version, redundancy health, GSHUT eligibility, backup IDs |
+| `precheck.py` | `run_pre_check()` | `eos-precheck.json` | Pre-Check | `(passed: bool, details: dict)` — reachability, source version, redundancy health, GSHUT eligibility. No `backups` key in MVP1 (`include_backup=False`, hardcoded by the payload path) |
+| `precheck.py` | `run_pre_check_from_payload()`, `build_precheck_evidence()` | `eos-precheck.json` node `000a` (via `iag/eos-precheck-service.yaml` → `services/eos_upgrade/iag_entrypoint.py`), and `cli.py`'s `precheck` subcommand | Pre-Check (evaluation) | Evidence dict — `{pair_id, side_a_hostname, side_b_hostname, target_version, passed, details, generated_at}`. Single shared implementation for both the CLI and the IAG-invoked path — see `MVP1-INTEGRATION.md` §4-§7 |
+| `device_broker.py` | `device_from_record()`, `CollectedFactsDeviceBrokerClient` | called by `run_pre_check_from_payload()` | Pre-Check (evaluation) | `Device` / a `DeviceBrokerClient` built from pre-collected facts, not live calls — see `docs/architecture.md`'s push model |
 | `maintenance.py` | `drain_side()`, `restore_side()` | `eos-upgrade-single-device.json`, `eos-upgrade-orchestrator.json` | GSHUT Drain (A/B), Restore | `DrainResult` (converged, route counts, duration, timed_out) |
 | `upgrade.py` | `stage_and_reload()`, `rollback_side()`, `upgrade_one_side()` | `eos-upgrade-single-device.json`, `eos-upgrade-orchestrator.json` | Upgrade (A/B), Rollback | `UpgradeResult` / `RollbackResult` |
 | `validation.py` | `validate_side()` | `eos-postcheck.json` | Post-Validate (A/B) | `ValidationResult` (version, redundancy, interfaces, peer match, `.passed`) |

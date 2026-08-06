@@ -8,6 +8,8 @@
 
 Device access itself is abstracted behind a `DeviceBrokerClient` interface (`services/eos_upgrade/models.py`) so the service layer never talks to EOS directly — in production, the Python Action's implementation of that interface calls the platform's Device Broker.
 
+**Resolved for Pre-Check (MVP1) specifically:** the model is push, not pull. `eos-precheck.json`'s workflow structure separates data *collection* (native Device Broker tasks: Check connectivity, Collect EOS versions, Collect MLAG status, Collect BGP summaries, Collect interface status) from *evaluation* (`Evaluate pair readiness`, a single Python Action). The Python layer never calls Device Broker itself — it's handed a `CollectedFactsDeviceBrokerClient` (`services/eos_upgrade/device_broker.py`) built from already-collected data, which satisfies the same `DeviceBrokerClient` interface `run_pre_check()` always expected. Consequence: the Pre-Check Python service needs zero device credentials. This settles the IAG-vs-native-Python-Action question for Pre-Check only — later phases (GSHUT, upgrade) that need live device calls may still choose differently.
+
 ## Call graph
 
 ```
