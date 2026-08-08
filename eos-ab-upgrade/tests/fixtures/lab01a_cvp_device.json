@@ -1,0 +1,17 @@
+{
+  "_comment": "LAB01A-style CVP inventory device — shape mirrors /cvpservice/inventory/devices entries. Operational MLAG/BGP/interface fields are absent (not returned by inventory); normalizer must label them unverified.",
+  "modelName": "DCS-7050SX3-48YC8",
+  "internalVersion": "4.29.2F",
+  "systemMacAddress": "44:4c:a8:de:0a:01",
+  "serialNumber": "JPE12345678",
+  "version": "4.29.2F",
+  "softwareVersion": "4.29.2F",
+  "hostname": "LAB01A",
+  "fqdn": "LAB01A.lab.local",
+  "dId": "LAB01A",
+  "ipAddress": "10.20.30.41",
+  "streamingStatus": "active",
+  "status": "Registered",
+  "type": "netelement",
+  "containerName": "Lab-Leafs"
+}

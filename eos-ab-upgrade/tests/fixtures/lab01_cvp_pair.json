@@ -1,0 +1,41 @@
+{
+  "_comment": "Pair envelope wrapping two LAB01A-style CVP inventory devices. No show mlag / show bgp / show interfaces payloads — those remain unverified.",
+  "side_a": {
+    "modelName": "DCS-7050SX3-48YC8",
+    "internalVersion": "4.29.2F",
+    "systemMacAddress": "44:4c:a8:de:0a:01",
+    "serialNumber": "JPE12345678",
+    "version": "4.29.2F",
+    "softwareVersion": "4.29.2F",
+    "hostname": "LAB01A",
+    "fqdn": "LAB01A.lab.local",
+    "dId": "LAB01A",
+    "ipAddress": "10.20.30.41",
+    "streamingStatus": "active",
+    "status": "Registered",
+    "type": "netelement",
+    "containerName": "Lab-Leafs"
+  },
+  "side_b": {
+    "modelName": "DCS-7050SX3-48YC8",
+    "internalVersion": "4.29.2F",
+    "systemMacAddress": "44:4c:a8:de:0b:01",
+    "serialNumber": "JPE12345679",
+    "version": "4.29.2F",
+    "softwareVersion": "4.29.2F",
+    "hostname": "LAB01B",
+    "fqdn": "LAB01B.lab.local",
+    "dId": "LAB01B",
+    "ipAddress": "10.20.30.42",
+    "streamingStatus": "active",
+    "status": "Registered",
+    "type": "netelement",
+    "containerName": "Lab-Leafs"
+  },
+  "policy": {
+    "supported_source_versions": ["4.28", "4.29", "4.30", "4.31"],
+    "require_mlag_active": true,
+    "minimum_bgp_health_percent": 100,
+    "minimum_interface_health_percent": 100
+  }
+}

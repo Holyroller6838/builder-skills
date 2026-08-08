@@ -1,7 +1,7 @@
 [project]
 name = "eos-ab-upgrade"
 version = "0.1.0"
-description = "Reference services package for the Arista EOS A/B software upgrade use case"
+description = "Decision logic and services for the Arista EOS A/B software upgrade use case"
 requires-python = ">=3.10"
 dependencies = []
 
@@ -16,10 +16,11 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["services*"]
+where = ["src", "."]
+include = ["eos_ab_upgrade*", "services*"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
 
 [tool.ruff]

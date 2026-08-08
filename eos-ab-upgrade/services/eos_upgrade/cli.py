@@ -4,7 +4,8 @@ import argparse
 import json
 import sys
 
-from . import precheck
+from eos_ab_upgrade.normalize import normalize_pair_readiness
+from eos_ab_upgrade.pair_readiness import evaluate_pair_readiness
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -14,8 +15,14 @@ def main(argv: list[str] | None = None) -> int:
     render = sub.add_parser("render-report", help="Pretty-print a saved evidence report JSON file")
     render.add_argument("report_json", help="Path to a JSON evidence report produced by reporting.to_json()")
 
-    run_precheck = sub.add_parser("precheck", help="Run the read-only EOS A/B precheck from a JSON payload")
-    run_precheck.add_argument("payload", help="Path to a precheck payload JSON file, or '-' to read from stdin")
+    run_precheck = sub.add_parser(
+        "precheck",
+        help="Normalize + evaluate pair readiness from a JSON payload (canonical contract)",
+    )
+    run_precheck.add_argument(
+        "payload",
+        help="Path to a pair payload JSON file (canonical, CVP, or collected side records), or '-' for stdin",
+    )
 
     args = parser.parse_args(argv)
 
@@ -32,9 +39,9 @@ def main(argv: list[str] | None = None) -> int:
             with open(args.payload) as f:
                 raw = f.read()
         payload = json.loads(raw)
-        evidence = precheck.run_pre_check_from_payload(payload)
-        print(json.dumps(evidence, indent=2))
-        return 0 if evidence["passed"] else 1
+        result = evaluate_pair_readiness(normalize_pair_readiness(payload))
+        print(json.dumps(result, indent=2))
+        return 0 if result["eligible"] else 1
 
     return 1
 

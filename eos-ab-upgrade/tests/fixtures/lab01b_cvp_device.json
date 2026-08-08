@@ -1,0 +1,17 @@
+{
+  "_comment": "LAB01B peer — companion CVP inventory record for A/B pair tests.",
+  "modelName": "DCS-7050SX3-48YC8",
+  "internalVersion": "4.29.2F",
+  "systemMacAddress": "44:4c:a8:de:0b:01",
+  "serialNumber": "JPE12345679",
+  "version": "4.29.2F",
+  "softwareVersion": "4.29.2F",
+  "hostname": "LAB01B",
+  "fqdn": "LAB01B.lab.local",
+  "dId": "LAB01B",
+  "ipAddress": "10.20.30.42",
+  "streamingStatus": "active",
+  "status": "Registered",
+  "type": "netelement",
+  "containerName": "Lab-Leafs"
+}
