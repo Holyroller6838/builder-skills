@@ -1,27 +1,21 @@
 [project]
 name = "eos-ab-upgrade"
 version = "0.1.0"
-description = "Reference services package for the Arista EOS A/B software upgrade use case"
-requires-python = ">=3.10"
+description = "Decision logic used by an Itential Arista EOS A/B upgrade workflow"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4", "ruff>=0.4"]
-
-[project.scripts]
-eos-upgrade = "services.eos_upgrade.cli:main"
+dev = ["pytest>=7.4"]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["services*"]
+where = ["src"]
+include = ["eos_ab_upgrade*"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["src"]
 testpaths = ["tests"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
