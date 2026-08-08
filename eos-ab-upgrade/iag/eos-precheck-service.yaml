@@ -1,41 +1,49 @@
 # INTEGRATION DRAFT — not yet verified against a live IAG install. See callouts below.
+#
+# SINGLE INPUT CONTRACT: schemas/pair_readiness.canonical.json
+# Raw CVP / Device Broker / legacy MVP1 side records are accepted by the
+# normalizer (eos_ab_upgrade.normalize) and converted into that canonical shape
+# before evaluate_pair_readiness() runs. Do not invent a second payload contract.
 decorators:
   - name: eos-precheck-input
     schema:
       $id: eos-precheck-input
       $schema: https://json-schema.org/draft/2020-12/schema
       type: object
-      required: [side_a, side_b, target_version]
+      required: [side_a, side_b]
+      description: >
+        Accepts either already-canonical pair readiness input, or a pair
+        envelope whose side_a/side_b are raw CVP inventory devices or collected
+        Device Broker side records. Normalization happens inside the Python
+        service. MLAG/BGP/interface fields remain unverified until live
+        operational-command responses are captured.
       properties:
+        side_a:
+          type: object
+          description: Canonical side, CVP inventory device, or collected Device Broker side record
+        side_b:
+          type: object
+          description: Canonical side, CVP inventory device, or collected Device Broker side record
+        policy:
+          type: object
+          description: Optional; defaults applied by the normalizer when omitted
+          properties:
+            supported_source_versions:
+              type: array
+              items: { type: string }
+            require_mlag_active:
+              type: boolean
+            minimum_bgp_health_percent:
+              type: number
+            minimum_interface_health_percent:
+              type: number
         pair_id:
           type: string
+          description: Optional correlation id (not required by the evaluator)
         target_version:
           type: string
-          description: "Target EOS version, e.g. 4.31.1M"
-        side_a:
-          $ref: "#/$defs/device_side"
-        side_b:
-          $ref: "#/$defs/device_side"
-      $defs:
-        device_side:
-          type: object
-          required: [hostname, management_ip, adapter_id, facts, peer_state]
-          properties:
-            hostname:
-              type: string
-            management_ip:
-              type: string
-            adapter_id:
-              type: string
-            source_version:
-              type: string
-            facts:
-              type: object
-              description: "Pre-collected via native Device Broker tasks upstream in eos-precheck.json — not fetched by this service"
-            peer_state:
-              type: object
-              description: "Pre-collected MLAG/redundancy state upstream — not fetched by this service"
-      additionalProperties: false
+          description: Optional; retained for workflow correlation, not used by evaluate_pair_readiness
+      additionalProperties: true
     # UNVERIFIED: does IAG pass this decorator's fields to a filename-based python-script
     # via stdin, or as ordered CLI args (see this schema doc's `argument_order` option)?
     # services/eos_upgrade/iag_entrypoint.py assumes stdin. Confirm in the lab before
@@ -49,7 +57,10 @@ repositories:
 services:
   - name: eos-precheck
     type: python-script
-    description: "Read-only EOS A/B precheck evaluation (MVP1). Evaluates already-collected device facts; does not call Device Broker or touch devices itself."
+    description: >
+      Read-only EOS A/B precheck evaluation (MVP1). Normalizes raw
+      Itential/CVP/Device Broker input into the canonical readiness schema, then
+      evaluates pair readiness. Does not call Device Broker or touch devices.
     repository: builder-skills-eos-ab-upgrade
     working-directory: eos-ab-upgrade
     filename: services/eos_upgrade/iag_entrypoint.py

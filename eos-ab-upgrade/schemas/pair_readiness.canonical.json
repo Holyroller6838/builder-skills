@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "eos-ab-upgrade/schemas/pair_readiness.canonical.json",
+  "title": "EOS A/B Pair Readiness — Canonical Input Contract",
+  "description": "THE single input contract for evaluate_pair_readiness(). Raw Itential / CVP / Device Broker payloads MUST be normalized into this shape before evaluation. The evaluator never understands vendor- or platform-specific response formats.",
+  "type": "object",
+  "required": ["side_a", "side_b", "policy"],
+  "additionalProperties": false,
+  "properties": {
+    "side_a": { "$ref": "#/$defs/side" },
+    "side_b": { "$ref": "#/$defs/side" },
+    "policy": { "$ref": "#/$defs/policy" }
+  },
+  "$defs": {
+    "field_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Verification provenance per field group. Operational groups (mlag, bgp, interfaces) remain 'unverified' until live show-command / Device Broker operational responses are captured in lab.",
+      "properties": {
+        "identity": {
+          "type": "string",
+          "enum": ["verified", "unverified"],
+          "description": "device_name / hostname provenance"
+        },
+        "reachability": {
+          "type": "string",
+          "enum": ["verified", "unverified"],
+          "description": "reachable provenance (e.g. CVP streamingStatus)"
+        },
+        "version": {
+          "type": "string",
+          "enum": ["verified", "unverified"],
+          "description": "EOS version provenance (e.g. CVP softwareVersion / version)"
+        },
+        "mlag": {
+          "type": "string",
+          "enum": ["verified", "unverified"],
+          "description": "UNVERIFIED until live MLAG operational-command responses are captured"
+        },
+        "bgp": {
+          "type": "string",
+          "enum": ["verified", "unverified"],
+          "description": "UNVERIFIED until live BGP summary operational-command responses are captured"
+        },
+        "interfaces": {
+          "type": "string",
+          "enum": ["verified", "unverified"],
+          "description": "UNVERIFIED until live interface-status operational-command responses are captured"
+        }
+      }
+    },
+    "side": {
+      "type": "object",
+      "required": ["device_name", "reachable", "version", "field_status"],
+      "additionalProperties": false,
+      "properties": {
+        "device_name": { "type": "string" },
+        "reachable": { "type": "boolean" },
+        "version": { "type": "string" },
+        "mlag_state": {
+          "type": ["string", "null"],
+          "description": "Canonical MLAG state (e.g. 'active'). null when field_status.mlag is unverified."
+        },
+        "mlag_peer_state": {
+          "type": ["string", "null"],
+          "description": "Canonical MLAG peer state (e.g. 'connected'). null when field_status.mlag is unverified."
+        },
+        "bgp_established": {
+          "type": ["number", "null"],
+          "description": "Established BGP neighbor count. null when field_status.bgp is unverified."
+        },
+        "bgp_expected": {
+          "type": ["number", "null"],
+          "description": "Expected BGP neighbor count. null when field_status.bgp is unverified."
+        },
+        "critical_interfaces_up": {
+          "type": ["number", "null"],
+          "description": "Critical interfaces up. null when field_status.interfaces is unverified."
+        },
+        "critical_interfaces_expected": {
+          "type": ["number", "null"],
+          "description": "Critical interfaces expected. null when field_status.interfaces is unverified."
+        },
+        "field_status": { "$ref": "#/$defs/field_status" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "supported_source_versions",
+        "require_mlag_active",
+        "minimum_bgp_health_percent",
+        "minimum_interface_health_percent"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "supported_source_versions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "require_mlag_active": { "type": "boolean" },
+        "minimum_bgp_health_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "minimum_interface_health_percent": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    }
+  }
+}

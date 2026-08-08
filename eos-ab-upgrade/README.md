@@ -11,14 +11,18 @@ See [`specs/spec-arista-eos-ab-upgrade.md`](specs/spec-arista-eos-ab-upgrade.md)
 | `specs/` | Use case spec and the phase → workflow → service map |
 | `docs/` | Architecture, platform task mapping, Device Broker mapping, Python Action mapping, acceptance test plan, rollback runbook |
 | `workflows/` | Itential Automation Studio workflow scaffolds (orchestrator + 3 subworkflows) |
-| `services/eos_upgrade/` | Python reference implementation of the drain-confirmation, validation, and reporting logic — the business logic Python Actions in the workflows call into |
-| `tests/` | Unit tests for `services/eos_upgrade` against a fake Device Broker client |
+| `src/eos_ab_upgrade/` | Canonical pair-readiness decision logic: `normalize` → `evaluate_pair_readiness` |
+| `schemas/pair_readiness.canonical.json` | **The single input contract** for evaluation |
+| `services/eos_upgrade/` | IAG entrypoint, CLI, and DeviceBrokerClient helpers |
+| `tests/` | Unit tests including LAB01A-style CVP normalization fixtures |
 
 ## Status
 
 The workflow JSON files in `workflows/` are scaffolds (start/end + input/output schema only). Per this repo's [AGENTS.md](../AGENTS.md) Key Rule 1, task names are never invented — the actual task graph inside each workflow gets wired during the Build stage (`/builder-agent`) against the live platform's `tasks.json`, using `docs/itential-task-map.md` and `docs/device-broker-map.md` as the design reference.
 
 The `services/eos_upgrade` package, by contrast, is a real, testable implementation — it doesn't depend on any specific Itential task names, only on a generic `DeviceBrokerClient` interface (see `services/eos_upgrade/models.py`) that a Device Broker-backed Python Action implements at build time.
+
+**MVP1 pair readiness:** raw Itential/CVP/Device Broker JSON is normalized into `schemas/pair_readiness.canonical.json`, then evaluated by `evaluate_pair_readiness()`. MLAG/BGP/interface fields stay `unverified` until live operational-command responses are captured. See `MVP1-INTEGRATION.md`.
 
 ## Quickstart
 
