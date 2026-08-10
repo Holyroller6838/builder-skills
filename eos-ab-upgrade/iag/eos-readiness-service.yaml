@@ -1,0 +1,65 @@
+# INTEGRATION DRAFT — not yet verified against a live IAG install. See callouts below.
+decorators:
+  - name: eos-readiness-input
+    schema:
+      $id: eos-readiness-input
+      $schema: https://json-schema.org/draft/2020-12/schema
+      type: object
+      required: [device, target_version, connectivity, facts, mlag_status, bgp_summary, interfaces]
+      properties:
+        device:
+          type: object
+          required: [hostname, management_ip, adapter_id]
+          properties:
+            hostname:
+              type: string
+            management_ip:
+              type: string
+            adapter_id:
+              type: string
+            source_version:
+              type: string
+        target_version:
+          type: string
+          description: "Target EOS version, e.g. 4.31.1M"
+        connectivity:
+          type: object
+          description: "Pre-collected via the Connectivity Check node upstream — not fetched by this service"
+        facts:
+          type: object
+          description: "Pre-collected via the EOS Version node upstream — not fetched by this service"
+        mlag_status:
+          type: object
+          description: "Pre-collected via the MLAG Status node upstream — not fetched by this service"
+        bgp_summary:
+          type: object
+          description: "Pre-collected via the BGP Summary node upstream — evidence-only, does not gate pass/fail"
+        interfaces:
+          type: object
+          description: "Pre-collected via the Interface Status node upstream — not fetched by this service"
+      additionalProperties: false
+    # UNVERIFIED: does IAG pass this decorator's fields to a filename-based python-script
+    # via stdin, or as ordered CLI args (see this schema doc's `argument_order` option)?
+    # services/eos_upgrade/readiness_entrypoint.py assumes stdin. Confirm in the lab before
+    # relying on this — if IAG uses argument_order instead, the entrypoint needs rework.
+
+repositories:
+  - name: builder-skills-eos-ab-upgrade
+    url: "PLACEHOLDER — confirm the real git URL/branch IAG should clone for this repo"
+    reference: main
+
+services:
+  - name: eos-readiness
+    type: python-script
+    description: "Read-only single-device EOS upgrade readiness evaluation (MVP Track 1). Evaluates already-collected device facts; does not call Device Broker, Inventory Manager, or GatewayManager itself."
+    repository: builder-skills-eos-ab-upgrade
+    working-directory: eos-ab-upgrade
+    filename: services/eos_upgrade/readiness_entrypoint.py
+    decorator: eos-readiness-input
+    tags:
+      - network
+      - eos
+      - readiness
+      - read-only
+    # No secrets: this service never authenticates to a device or any adapter —
+    # all data collection happens in upstream native Itential tasks. See integration-contracts.md.

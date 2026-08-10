@@ -1,8 +1,13 @@
 # EOS A/B Software Upgrade
 
-Automated A/B software upgrade for Arista EOS redundant pairs (MLAG peers, dual-homed leaf pairs) on the Itential Platform: pre-check → GSHUT drain → upgrade → validate → operator approval → repeat on the peer → restore → evidence report, with per-side rollback on failure.
+This project hosts two additive tracks — related but independently scoped, don't confuse one for the other:
 
-See [`specs/spec-arista-eos-ab-upgrade.md`](specs/spec-arista-eos-ab-upgrade.md) for the full use case spec this project implements.
+| Track | Scope | Spec | Workflow | Integration doc |
+|---|---|---|---|---|
+| **Pair-based A/B upgrade** | Redundant-pair upgrade lifecycle (MLAG, GSHUT drain, per-side rollback) | [`specs/spec-arista-eos-ab-upgrade.md`](specs/spec-arista-eos-ab-upgrade.md) | `workflows/eos-precheck.json` + 3 scaffolds | [`MVP1-INTEGRATION.md`](MVP1-INTEGRATION.md), [`MVP1-DEPLOYMENT-CHECKLIST.md`](MVP1-DEPLOYMENT-CHECKLIST.md) |
+| **MVP Track 1 — Upgrade readiness** | Single-device read-only readiness check (no pair, no GSHUT) | Not yet covered by an approved customer-spec — built ahead of Requirements at the engineer's request | `workflows/eos-upgrade-readiness.json` | [`integration-contracts.md`](integration-contracts.md) |
+
+Automated A/B software upgrade for Arista EOS redundant pairs (MLAG peers, dual-homed leaf pairs) on the Itential Platform: pre-check → GSHUT drain → upgrade → validate → operator approval → repeat on the peer → restore → evidence report, with per-side rollback on failure. That's the pair-based track. MVP Track 1 is a separate, single-device readiness assessment — see `integration-contracts.md` for its scope and open integration questions.
 
 ## Structure
 

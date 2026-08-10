@@ -4,3 +4,17 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .venv/
+.env
+.auth.json
+*.json.bak
+platform-summary.json
+openapi.json
+tasks.json
+apps.json
+adapters.json
+applications.json
+workflows.json
+projects.json
+devices.json
+device-groups.json
+task-schemas.json

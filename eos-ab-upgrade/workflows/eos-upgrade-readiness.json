@@ -1,0 +1,283 @@
+{
+  "automation": {
+    "name": "EOS Upgrade Readiness — MVP Track 1 (read-only)",
+    "description": "MVP Track 1: single-device Arista EOS upgrade readiness check. INTEGRATION DRAFT — this workflow will NOT import successfully into a real Itential platform as-is: every task node whose app is \"INTEGRATION_PLACEHOLDER\" uses a sentinel value because no verified Device Broker, Inventory Manager, or CloudVision task exists anywhere in this repo (see integration-contracts.md). Only 'Evaluate Readiness' (GatewayManager/runService) reuses a verified real task pattern from helpers/assets/vendor-juniper-junos.json. Strictly read-only — does not implement GSHUT, config changes, image installation, reload, backup, or rollback. This is a single-device track, separate from the pair-based A/B upgrade build in workflows/eos-precheck.json.",
+    "type": "automation",
+    "canvasVersion": 3,
+    "encodingVersion": 1,
+    "font_size": 12,
+    "tasks": {
+      "workflow_start": {
+        "name": "workflow_start",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 120 }
+      },
+      "0001": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Validate Request",
+        "summary": "Validate Request",
+        "description": "PLACEHOLDER — confirm whether the workflow's own inputSchema.required is sufficient, or whether a dedicated condition/validation task is needed. No task name invented.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {
+            "device_identifier": "$var.job.device_identifier",
+            "target_version": "$var.job.target_version"
+          },
+          "outgoing": { "valid": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 240 }
+      },
+      "0002": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Resolve Device",
+        "summary": "Resolve Device",
+        "description": "PLACEHOLDER — verify the real Inventory Manager and/or Device Broker lookup task (see /itential-inventory skill) that resolves a device identifier into a complete device object {hostname, management_ip, adapter_id, source_version}. This is our own contract (see services/eos_upgrade/device_broker.py:device_from_record), not a mapping of Itential's real device schema — no Inventory Manager or Device Broker task name is invented here. See integration-contracts.md.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device_identifier": "$var.job.device_identifier" },
+          "outgoing": { "device_record": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 360 }
+      },
+      "0003": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Connectivity Check",
+        "summary": "Connectivity Check",
+        "description": "PLACEHOLDER — verify the real Device Broker generic-dispatch task/schema (AGENTS.md Key Rule 10's genericAdapterRequest is the closest documented lead, not lab-verified). Resolve the adapter app type name / adapter_id from the lab's apps.json / adapters.json, not from this file. Output contract: {reachable: bool} — our own, unverified. See integration-contracts.md.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device": "$var.0002.device_record" },
+          "outgoing": { "connectivity": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 480 }
+      },
+      "0004": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "EOS Version",
+        "summary": "EOS Version",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0003's note). Output must supply at minimum {version: string} — this field name is OUR contract, unverified against the real adapter's response shape. See integration-contracts.md and services/eos_upgrade/readiness.py:check_source_version_supported.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device": "$var.0002.device_record" },
+          "outgoing": { "facts": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 600 }
+      },
+      "0005": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "MLAG Status",
+        "summary": "MLAG Status",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0003's note). Output contract: {healthy: bool} — our own, unverified. For this single-device track this reports the device's own MLAG/peer-link state, not a cross-device pair comparison (unlike the pair-based precheck build in eos-precheck.json). See integration-contracts.md and services/eos_upgrade/readiness.py:check_mlag_healthy.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device": "$var.0002.device_record" },
+          "outgoing": { "mlag_status": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 720 }
+      },
+      "0006": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "BGP Summary",
+        "summary": "BGP Summary",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0003's note). This data is evidence/audit-trail only for Generate Report (0009) — it does not feed any pass/fail gate in services/eos_upgrade/readiness.py, since no approved requirement defines a BGP-summary gating rule for readiness. See integration-contracts.md.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device": "$var.0002.device_record" },
+          "outgoing": { "bgp_summary": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 840 }
+      },
+      "0007": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Interface Status",
+        "summary": "Interface Status",
+        "description": "PLACEHOLDER — Device Broker generic-dispatch task (see 0003's note). Output contract: {down_count: int} — our own, unverified. See integration-contracts.md and services/eos_upgrade/readiness.py:check_interfaces_healthy.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "device": "$var.0002.device_record" },
+          "outgoing": { "interfaces": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 960 }
+      },
+      "0008": {
+        "name": "runService",
+        "canvasName": "Evaluate Readiness",
+        "summary": "Evaluate Readiness",
+        "description": "Calls the eos-readiness IAG service (services/eos_upgrade/readiness_entrypoint.py via iag/eos-readiness-service.yaml), which evaluates already-collected facts read-only — it does not call Device Broker, Inventory Manager, or any adapter itself. Reuses the verified real runService/GatewayManager task shape from helpers/assets/vendor-juniper-junos.json — the task name and schema are not invented, only clusterId's real value and the upstream data-assembly step are unresolved. UNVERIFIED: clusterId's real value, and how params.device/connectivity/facts/mlag_status/bgp_summary/interfaces get assembled — per AGENTS.md Key Rule 8, $var references don't resolve inside nested object values, so a merge/makeData task is likely needed immediately before this node.",
+        "location": "Application",
+        "locationType": null,
+        "app": "GatewayManager",
+        "type": "automatic",
+        "displayName": "GatewayManager",
+        "variables": {
+          "incoming": {
+            "serviceName": "eos-readiness",
+            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
+            "params": {
+              "target_version": "$var.job.target_version",
+              "device": "PLACEHOLDER — requires an upstream merge/makeData task per AGENTS.md Key Rule 8; see description",
+              "connectivity": "PLACEHOLDER — same as device",
+              "facts": "PLACEHOLDER — same as device",
+              "mlag_status": "PLACEHOLDER — same as device",
+              "bgp_summary": "PLACEHOLDER — same as device",
+              "interfaces": "PLACEHOLDER — same as device"
+            }
+          },
+          "outgoing": { "result": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1080 }
+      },
+      "0009": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Generate Report",
+        "summary": "Generate Report",
+        "description": "PLACEHOLDER — 0008's result is already the full readiness evidence object (see services/eos_upgrade/readiness.py:build_readiness_evidence). This node's real job is to expose it as the workflow's job output (outputSchema.report) — verify whether that's a plain variable-mapping task or a dedicated task type.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": { "evaluation_result": "$var.0008.result" },
+          "outgoing": { "report": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1200 }
+      },
+      "000a": {
+        "name": "INTEGRATION_PLACEHOLDER",
+        "canvasName": "Handle Readiness Check Error",
+        "summary": "Handle Readiness Check Error",
+        "description": "Added beyond the requested 9 steps per AGENTS.md Key Rule 19/21: every external/adapter-calling task needs an error transition or the job gets stuck with 'no available transitions'. PLACEHOLDER — verify the real error-status task (e.g. a newVariable-style task per Key Rule 21) that produces a halted report shape.",
+        "location": "Application",
+        "locationType": null,
+        "app": "INTEGRATION_PLACEHOLDER",
+        "type": "automatic",
+        "displayName": "INTEGRATION_PLACEHOLDER",
+        "variables": {
+          "incoming": {},
+          "outgoing": { "report": "" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 1000, "y": 720 }
+      },
+      "workflow_end": {
+        "name": "workflow_end",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1320 }
+      }
+    },
+    "transitions": {
+      "workflow_start": { "0001": { "state": "success", "type": "standard" } },
+      "0001": { "0002": { "state": "success", "type": "standard" } },
+      "0002": {
+        "0003": { "state": "success", "type": "standard" },
+        "000a": { "state": "error", "type": "standard" }
+      },
+      "0003": {
+        "0004": { "state": "success", "type": "standard" },
+        "000a": { "state": "error", "type": "standard" }
+      },
+      "0004": {
+        "0005": { "state": "success", "type": "standard" },
+        "000a": { "state": "error", "type": "standard" }
+      },
+      "0005": {
+        "0006": { "state": "success", "type": "standard" },
+        "000a": { "state": "error", "type": "standard" }
+      },
+      "0006": {
+        "0007": { "state": "success", "type": "standard" },
+        "000a": { "state": "error", "type": "standard" }
+      },
+      "0007": {
+        "0008": { "state": "success", "type": "standard" },
+        "000a": { "state": "error", "type": "standard" }
+      },
+      "0008": {
+        "0009": { "state": "success", "type": "standard" },
+        "000a": { "state": "error", "type": "standard" }
+      },
+      "0009": { "workflow_end": { "state": "success", "type": "standard" } },
+      "000a": { "workflow_end": { "state": "success", "type": "standard" } },
+      "workflow_end": {}
+    },
+    "groups": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "device_identifier": {
+          "type": "string",
+          "description": "Device identifier for Resolve Device to look up. PLACEHOLDER — confirm whether Itential's real device reference at this boundary is a bare identifier (as assumed here) or already a full device object."
+        },
+        "target_version": { "type": "string", "description": "Target EOS version, e.g. 4.31.1M" }
+      },
+      "required": ["device_identifier", "target_version"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "report": {
+          "type": "object",
+          "description": "See services/eos_upgrade/readiness.py:build_readiness_evidence() — {device_hostname, target_version, passed, details, bgp_summary, generated_at}"
+        }
+      }
+    }
+  }
+}
