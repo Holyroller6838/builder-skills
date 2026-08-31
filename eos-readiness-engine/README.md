@@ -6,17 +6,26 @@ A profile-driven Arista EOS upgrade-readiness decision engine, called from Itent
 
 ## Status
 
-**Built:** `models.py` (the normalized domain contract), the profile framework (`profiles/`), all five checks (`checks/`), and the decision contract (`engine.py:evaluate_normalized`) — fully tested, zero dependency on real Itential/EOS/CVP payload shapes.
+**Built:** `models.py` (the normalized domain contract), the profile framework (`profiles/`), all five checks (`checks/`), the decision contract (`engine.py:evaluate_normalized`), the raw normalization layer (`raw/` — grouping by device name, `sh mlag`/`show mlag` aliasing, success-based failure detection, all against the confirmed real GatewayManager `sendCommand` envelope contract), the full `evaluate_pair(payload: dict)` entrypoint, and a draft IAG service wrapper (`iag_entrypoint.py`, `iag/eos-readiness-service.yaml`). 98/98 tests passing.
 
-**Deferred, not started:** raw payload normalization (`raw/` — doesn't exist yet), the `evaluate_pair(payload: dict)` wrapper that will call it, and any CLI/IAG entrypoint. All of this is blocked on a real, unmodified JSON payload from the `USILD001LAB01A`/`USILD001LAB01B` lab pair — every field name a parser would touch is currently unverified, so none of that code has been written, not even as a stub.
+**Partially built — read before trusting a result:** only `parse_show_version` is a real, fixture-verified parser. `parse_show_mlag`, `parse_show_bgp_summary`, and `parse_show_interfaces_status` are explicit `NotImplementedError` stubs — no real captured output exists yet for `sh mlag`, `show ip bgp summary`, or `show interfaces status`, and none is invented. This means **`evaluate_pair()` currently returns `status: FAIL` for every profile** (even `basic_pair`, since `interfaces` is a base check) — not a bug, an honest reflection of what's actually implemented. Only `version` genuinely passes/fails correctly end-to-end today. Provide real captured fixtures for the other three commands to unblock them.
+
+**Also not yet built:** per-pair `critical_interfaces`/`critical_bgp_peers` wiring into `evaluate_pair()` — the current 4-field payload contract (`pair_id`, `target_version`, `profile`, `command_results`) doesn't carry them, so once mlag/bgp/interfaces parsing exists, those checks will default to their no-critical-list `WARNING` fallback rather than `PASS`, until this is added. No IAG service is actually registered on any live platform yet — `iag/eos-readiness-service.yaml` is a draft.
 
 ## Architecture
 
 ```
-Itential (collects commands, owns devices/creds — outside this package)
-        │  raw command_results[] — NOT yet consumed here
+Itential (collects commands via GatewayManager sendCommand, owns devices/creds)
+        │  raw command_results[] — confirmed real envelope:
+        │  {command, elapsed_time, end_time, host, name, output, start_time, success}
         ▼
-[ raw normalization — DEFERRED, pending real fixture ]
+┌───────────────────────────────────────────────┐
+│  RAW NORMALIZATION (raw/)                       │
+│  group by device name + sh/show aliasing        │
+│  (collectors.py) → per-command parse            │
+│  (parsers.py — version real, mlag/bgp/           │
+│  interfaces explicit NotImplementedError)        │
+└───────────────────────────────────────────────┘
         │  NormalizedPairData (our own contract, see models.py)
         ▼
 ┌───────────────────────────────────────────────┐
@@ -35,7 +44,7 @@ Itential (collects commands, owns devices/creds — outside this package)
 Itential (branches workflow on `ready`/`status`)
 ```
 
-Every dataclass in `models.py` is **our own invented contract**, not a mapping of any real EOS/CVP/Torero/Itential payload field — documented inline. The (not yet built) `raw/` layer is the only place that will ever need to know real vendor field names.
+Every dataclass in `models.py` is **our own invented contract**, not a mapping of any real EOS/CVP/Torero/Itential payload field — documented inline. `raw/` is the only layer that ever touches real vendor field names — and even there, only the *envelope* fields (`command`/`name`/`output`/`success`) and `show version`'s CLI text are confirmed real; `sh mlag`/`show ip bgp summary`/`show interfaces status` CLI parsing is not invented, it's simply not implemented yet.
 
 ## Decision rules
 

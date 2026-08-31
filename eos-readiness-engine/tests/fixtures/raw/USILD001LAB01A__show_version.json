@@ -1,0 +1,5 @@
+{
+  "device": "USILD001LAB01A",
+  "command": "show version",
+  "output": "Arista DCS-7280CR2A-30-F\nHardware version: 21.01\nSerial number: JPE19321543\nHardware MAC address: 985d.826f.0497\nSystem MAC address: 985d.826f.0497\nSoftware image version: 4.31.4M-37710355.4314M\nInternal build ID: d26721db-c526-41ec-bf9d-0a14b4edfcf5\nImage format version: 3.0\nImage optimization: Default\nArchitecture: i686\nInternal build version: 4.31.4M-37710355.4314M\nUptime: 9 weeks, 6 days, 20 hours and 33 minutes\nTotal memory: 32738276 kB\nFree memory: 29424736 kB\n"
+}

@@ -1,0 +1,61 @@
+# INTEGRATION DRAFT — not yet verified against a live IAG install. See callouts below.
+decorators:
+  - name: eos-readiness-input
+    schema:
+      $id: eos-readiness-input
+      $schema: https://json-schema.org/draft/2020-12/schema
+      type: object
+      required: [pair_id, target_version, profile, command_results]
+      properties:
+        pair_id:
+          type: string
+        target_version:
+          type: string
+          description: "Target EOS version, e.g. 4.33.1F"
+        profile:
+          type: string
+          enum: [mlag_bgp, bgp_only, mlag_only, basic_pair]
+        command_results:
+          type: array
+          description: "The verified live GatewayManager sendCommand result.result.results array, unmodified — do not pre-split by device. This service groups entries by each item's name/command fields itself."
+          items:
+            type: object
+            required: [command, host, name, output, success]
+            properties:
+              command:
+                type: string
+              host:
+                type: string
+              name:
+                type: string
+              output:
+                type: string
+              success:
+                type: boolean
+      additionalProperties: false
+    # UNVERIFIED: does IAG pass this decorator's fields to a filename-based python-script
+    # via stdin, or as ordered CLI args (see this schema doc's `argument_order` option)?
+    # eos_readiness/iag_entrypoint.py assumes stdin. Confirm in the lab before relying
+    # on this — if IAG uses argument_order instead, the entrypoint needs rework.
+
+repositories:
+  - name: builder-skills-eos-readiness-engine
+    url: "PLACEHOLDER — confirm the real git URL/branch IAG should clone for this repo"
+    reference: main
+
+services:
+  - name: eos-readiness
+    type: python-script
+    description: "Profile-driven Arista EOS A/B pair readiness evaluation (MVP1). Groups and normalizes the already-collected command_results it's given; does not call Device Broker, GatewayManager, or any adapter itself. Only show version parsing is implemented — sh mlag/show mlag, show ip bgp summary, and show interfaces status parsing are not yet built pending real captured fixtures, so this service currently returns FAIL for any profile that needs them (see eos-readiness-engine/README.md's Status section)."
+    repository: builder-skills-eos-readiness-engine
+    working-directory: eos-readiness-engine
+    filename: eos_readiness/iag_entrypoint.py
+    decorator: eos-readiness-input
+    tags:
+      - network
+      - eos
+      - readiness
+      - read-only
+    # No secrets: this service never authenticates to a device or any adapter —
+    # command collection happens entirely upstream, in the Itential workflow
+    # (see workflows/eos-ab-readiness.json's sendCommand node).
