@@ -1,7 +1,7 @@
 {
   "automation": {
     "name": "EOS A/B Pair Readiness — MVP1 (read-only)",
-    "description": "MVP1 read-only readiness check for an Arista EOS A/B pair. Runs the existing GatewayManager command-collection task against both sides, preserves each side's raw result.result.results array unparsed, assembles the profile-driven payload the eos-readiness-engine service expects, and branches on PASS/WARNING/FAIL. INTEGRATION NOTE: unlike an earlier draft workflow in this repo (eos-ab-upgrade/workflows/eos-precheck.json) which used an INTEGRATION_PLACEHOLDER sentinel app for unverified nodes, every task here uses a verified real Itential task type (GatewayManager/runService, query, merge, parse, evaluation, newVariable, ViewData) — only specific configuration VALUES (serviceName, clusterId, and the collection task's exact request parameter schema) are placeholders needing live-platform confirmation, not the task types themselves. Also assumes the 'Evaluate EOS Readiness' node calls a future IAG service wrapping eos-readiness-engine's evaluate_pair(payload) — that raw-payload-facing wrapper and its IAG service registration do not exist yet in this repo; only evaluate_normalized() (operating on already-normalized data) is built. Strictly read-only — implements no GSHUT, config changes, image staging, reload, or upgrade actions.",
+    "description": "MVP1 read-only readiness check for an Arista EOS A/B pair. Runs the verified live GatewayManager sendCommand task ONCE to collect show version / sh mlag / show ip bgp summary / show interfaces status from both sides in a single invocation, preserves the complete unsplit result.result.results array (A and B results interleaved, grouped later by the eos-readiness-engine normalization layer using each result's name field), assembles the {pair_id, target_version, profile, command_results} payload the readiness service is expected to consume, and branches on PASS/WARNING/FAIL. clusterId/commands/inventory on the sendCommand node are the exact values the engineer confirmed work against the live platform — not placeholders. The 'Evaluate EOS Readiness' node remains a clearly marked placeholder: no IAG service has been registered for eos-readiness-engine yet, and its raw-payload-facing evaluate_pair(payload) wrapper does not exist either (only evaluate_normalized(), which takes already-normalized data, is built — see eos-readiness-engine/README.md's Status section). Strictly read-only — implements no GSHUT, config changes, image staging, reload, or upgrade actions. Business logic in eos_readiness/ is unchanged by this revision.",
     "type": "automation",
     "canvasVersion": 3,
     "encodingVersion": 1,
@@ -13,10 +13,10 @@
         "nodeLocation": { "x": 600, "y": 120 }
       },
       "0001": {
-        "name": "runService",
-        "canvasName": "runService",
-        "summary": "Collect Side A Commands",
-        "description": "Calls the existing GatewayManager command-collection task (referred to by the engineer as the 'Itential Gateway Manager sendCommand' task) against Side A. Runs show version / sh mlag / show ip bgp summary / show interfaces status and returns result.result.results[]. NEEDS VERIFICATION: (1) the real registered serviceName for this task — 'PLACEHOLDER' below is not confirmed; (2) whether it's actually invoked via runService (a pre-registered IAG service, assumed here) or runCode — not confirmed; (3) the exact request params schema (device targeting field name, whether commands are configurable or fixed) is unknown — deliberately left as a placeholder string rather than an invented object, per instruction not to guess task schemas.",
+        "name": "sendCommand",
+        "canvasName": "sendCommand",
+        "summary": "Collect A/B Operational State",
+        "description": "Verified live GatewayManager sendCommand task. One invocation collects all four commands from BOTH Side A and Side B in a single call — replaces the earlier two-task (Collect Side A / Collect Side B) design. clusterId, commands, and inventory below are the exact values the engineer confirmed work against the live platform, not placeholders. inventory.nodeNames is currently hardcoded to the lab pair (USILD001LAB01A/USILD001LAB01B) rather than wired from job inputs — making it dynamic per arbitrary pairs would require an upstream merge/makeData task to build the nested inventory array, since $var references don't resolve inside nested object/array literals (AGENTS.md). Not built here since it wasn't requested; flagged as a follow-up if this workflow needs to run against pairs other than the lab pair. type is assumed 'automatic' for consistency with every other verified GatewayManager task in this repo — not independently confirmed for sendCommand specifically.",
         "location": "Application",
         "locationType": null,
         "app": "GatewayManager",
@@ -24,12 +24,13 @@
         "displayName": "GatewayManager",
         "variables": {
           "incoming": {
-            "serviceName": "PLACEHOLDER — confirm the real registered service name for bulk EOS command collection",
-            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
-            "params": "PLACEHOLDER — exact request schema (device targeting field, command list, etc.) for this existing collection task is unverified; confirm against the live platform's task schema before Build. Should target $var.job.side_a_device.",
-            "inventory": ""
+            "clusterId": "cluster_1",
+            "commands": ["show version", "sh mlag", "show ip bgp summary", "show interfaces status"],
+            "inventory": [
+              { "inventory": "lab-test", "nodeNames": ["USILD001LAB01A", "USILD001LAB01B"] }
+            ]
           },
-          "outgoing": { "result": "$var.job.side_a_raw_result" },
+          "outgoing": { "result": "$var.job.collection_result" },
           "decorators": []
         },
         "actor": "Pronghorn",
@@ -37,23 +38,22 @@
         "nodeLocation": { "x": 600, "y": 228 }
       },
       "0002": {
-        "name": "runService",
-        "canvasName": "runService",
-        "summary": "Collect Side B Commands",
-        "description": "Same as Collect Side A Commands (0001), targeting Side B. Same verification notes apply.",
+        "name": "query",
+        "canvasName": "query",
+        "summary": "Extract Collection Results",
+        "description": "Extracts the raw, unparsed result.result.results[] array from the sendCommand response (path is result.results relative to the task's own 'result' outgoing value, which itself nests another 'result' key per the confirmed live response shape). Preserves command/host/name/output/success exactly, for both A and B combined — nothing here parses EOS CLI output or splits results by side. The future eos-readiness-engine normalization layer groups these by each result's name field.",
         "location": "Application",
         "locationType": null,
-        "app": "GatewayManager",
-        "type": "automatic",
-        "displayName": "GatewayManager",
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
         "variables": {
           "incoming": {
-            "serviceName": "PLACEHOLDER — confirm the real registered service name for bulk EOS command collection",
-            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
-            "params": "PLACEHOLDER — exact request schema is unverified; confirm before Build. Should target $var.job.side_b_device.",
-            "inventory": ""
+            "pass_on_null": false,
+            "query": "result.results",
+            "obj": "$var.job.collection_result"
           },
-          "outgoing": { "result": "$var.job.side_b_raw_result" },
+          "outgoing": { "return_data": "$var.job.command_results" },
           "decorators": []
         },
         "actor": "Pronghorn",
@@ -61,56 +61,10 @@
         "nodeLocation": { "x": 600, "y": 336 }
       },
       "0003": {
-        "name": "query",
-        "canvasName": "query",
-        "summary": "Extract Side A Results",
-        "description": "Extracts the raw, unparsed result.result.results[] array from Side A's collection response (path is result.results relative to the task's own 'result' outgoing value, which itself nests another 'result' key per the engineer's stated real response shape). command/host/name/output/success are preserved exactly — nothing here parses EOS CLI output.",
-        "location": "Application",
-        "locationType": null,
-        "app": "WorkFlowEngine",
-        "type": "operation",
-        "displayName": "WorkFlowEngine",
-        "variables": {
-          "incoming": {
-            "pass_on_null": false,
-            "query": "result.results",
-            "obj": "$var.job.side_a_raw_result"
-          },
-          "outgoing": { "return_data": "$var.job.side_a_results" },
-          "decorators": []
-        },
-        "actor": "Pronghorn",
-        "groups": [],
-        "nodeLocation": { "x": 600, "y": 444 }
-      },
-      "0004": {
-        "name": "query",
-        "canvasName": "query",
-        "summary": "Extract Side B Results",
-        "description": "Same as Extract Side A Results (0003), for Side B.",
-        "location": "Application",
-        "locationType": null,
-        "app": "WorkFlowEngine",
-        "type": "operation",
-        "displayName": "WorkFlowEngine",
-        "variables": {
-          "incoming": {
-            "pass_on_null": false,
-            "query": "result.results",
-            "obj": "$var.job.side_b_raw_result"
-          },
-          "outgoing": { "return_data": "$var.job.side_b_results" },
-          "decorators": []
-        },
-        "actor": "Pronghorn",
-        "groups": [],
-        "nodeLocation": { "x": 600, "y": 552 }
-      },
-      "0005": {
         "name": "merge",
         "canvasName": "merge",
         "summary": "Assemble Readiness Payload",
-        "description": "Builds the exact payload the readiness service expects: {pair_id, target_version, profile, side_a_results, side_b_results}. side_a_results/side_b_results are wired via task refs to 0003/0004 directly (not via {task:'job',...}), per AGENTS.md's merge/childJob rule — a job-ref here would incorrectly add side_a_results/side_b_results to the workflow's inputSchema.required, since they are internally produced, not genuine operator inputs.",
+        "description": "Builds the exact payload the readiness service expects: {pair_id, target_version, profile, command_results} — a single unsplit command_results array, not side_a_results/side_b_results. command_results is wired via a task ref to 0002 directly (not via {task:'job',...}), per AGENTS.md's merge/childJob rule — a job-ref here would incorrectly add command_results to the workflow's inputSchema.required, since it's internally produced, not a genuine operator input.",
         "location": "Application",
         "locationType": null,
         "app": "WorkFlowEngine",
@@ -122,8 +76,7 @@
               { "key": "pair_id", "value": { "task": "job", "variable": "pair_id" } },
               { "key": "target_version", "value": { "task": "job", "variable": "target_version" } },
               { "key": "profile", "value": { "task": "job", "variable": "profile" } },
-              { "key": "side_a_results", "value": { "task": "0003", "variable": "return_data" } },
-              { "key": "side_b_results", "value": { "task": "0004", "variable": "return_data" } }
+              { "key": "command_results", "value": { "task": "0002", "variable": "return_data" } }
             ]
           },
           "outgoing": { "merged_object": "$var.job.readiness_payload" },
@@ -131,13 +84,13 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 660 }
+        "nodeLocation": { "x": 600, "y": 444 }
       },
-      "0006": {
+      "0004": {
         "name": "runService",
         "canvasName": "runService",
         "summary": "Evaluate EOS Readiness",
-        "description": "Placeholder call into the future eos-readiness IAG service. serviceName='eos-readiness' is PROPOSED, matching the eos-readiness-engine Python package's name — no IAG service has actually been registered for it yet, and its raw-payload-facing evaluate_pair(payload) wrapper doesn't exist yet either (only evaluate_normalized(), which takes already-normalized data, is built — see eos-readiness-engine/README.md's Status section). params is wired directly to the merge output ($var.job.readiness_payload) since that payload shape is exactly what the engineer specified, not a guess.",
+        "description": "PLACEHOLDER — no IAG service has been registered for eos-readiness-engine yet. serviceName='eos-readiness' is PROPOSED, matching the Python package's name. Its raw-payload-facing evaluate_pair(payload) wrapper doesn't exist either — only evaluate_normalized() (already-normalized data) is built; see eos-readiness-engine/README.md's Status section. clusterId here is a SEPARATE placeholder from the 'cluster_1' confirmed for the sendCommand task (0001) — that confirmation was specific to sendCommand, not to a not-yet-registered readiness-evaluation service, which may run on the same or a different cluster. params is wired directly to the merge output ($var.job.readiness_payload) since that payload shape is exactly what the engineer specified, not a guess.",
         "location": "Application",
         "locationType": null,
         "app": "GatewayManager",
@@ -146,7 +99,7 @@
         "variables": {
           "incoming": {
             "serviceName": "eos-readiness — PROPOSED, not yet registered on any live platform",
-            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
+            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID for this service once it exists; not the same confirmation as sendCommand's cluster_1",
             "params": "$var.job.readiness_payload",
             "inventory": ""
           },
@@ -155,9 +108,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 768 }
+        "nodeLocation": { "x": 600, "y": 552 }
       },
-      "0007": {
+      "0005": {
         "name": "query",
         "canvasName": "query",
         "summary": "Extract Readiness Stdout",
@@ -178,9 +131,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 876 }
+        "nodeLocation": { "x": 600, "y": 660 }
       },
-      "0008": {
+      "0006": {
         "name": "parse",
         "canvasName": "parse",
         "summary": "Parse Readiness Result",
@@ -197,9 +150,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 984 }
+        "nodeLocation": { "x": 600, "y": 768 }
       },
-      "0009": {
+      "0007": {
         "name": "query",
         "canvasName": "query",
         "summary": "Extract Readiness Status",
@@ -220,9 +173,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 1092 }
+        "nodeLocation": { "x": 600, "y": 876 }
       },
-      "000a": {
+      "0008": {
         "name": "evaluation",
         "canvasName": "evaluation",
         "summary": "Check Status Is FAIL",
@@ -253,9 +206,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 1200 }
+        "nodeLocation": { "x": 600, "y": 984 }
       },
-      "000b": {
+      "0009": {
         "name": "evaluation",
         "canvasName": "evaluation",
         "summary": "Check Status Is PASS",
@@ -286,9 +239,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 1308 }
+        "nodeLocation": { "x": 600, "y": 1092 }
       },
-      "000c": {
+      "000a": {
         "name": "newVariable",
         "canvasName": "newVariable",
         "summary": "Readiness Successful",
@@ -305,9 +258,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 336, "y": 1416 }
+        "nodeLocation": { "x": 336, "y": 1200 }
       },
-      "000d": {
+      "000b": {
         "name": "ViewData",
         "canvasName": "ViewData",
         "summary": "Manual Approval / Review",
@@ -332,13 +285,13 @@
           "outgoing": {}
         },
         "groups": [],
-        "nodeLocation": { "x": 864, "y": 1416 }
+        "nodeLocation": { "x": 864, "y": 1092 }
       },
-      "0010": {
+      "000c": {
         "name": "newVariable",
         "canvasName": "newVariable",
         "summary": "Record Pending Review Outcome",
-        "description": "Records the outcome marker after the operator acknowledges the Manual Approval / Review step. Separate from 000d because ViewData's own outgoing is empty — it doesn't write named job variables directly.",
+        "description": "Records the outcome marker after the operator acknowledges the Manual Approval / Review step. Separate from 000b because ViewData's own outgoing is empty — it doesn't write named job variables directly.",
         "location": "Application",
         "locationType": null,
         "app": "WorkFlowEngine",
@@ -351,9 +304,9 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 864, "y": 1524 }
+        "nodeLocation": { "x": 864, "y": 1200 }
       },
-      "000e": {
+      "000d": {
         "name": "newVariable",
         "canvasName": "newVariable",
         "summary": "Stop and Report",
@@ -370,13 +323,13 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 864, "y": 1200 }
+        "nodeLocation": { "x": 336, "y": 984 }
       },
-      "000f": {
+      "000e": {
         "name": "newVariable",
         "canvasName": "newVariable",
         "summary": "Handle Readiness Workflow Error",
-        "description": "Shared error/failure handler for every task above that can fail before a readiness status is ever determined (collection calls, extraction queries, the evaluate-readiness call, parse). Records a distinct outcome marker so this is never confused with a genuine FAIL readiness result.",
+        "description": "Shared error/failure handler for every task above that can fail before a readiness status is ever determined (collection call, extraction queries, the evaluate-readiness call, parse). Records a distinct outcome marker so this is never confused with a genuine FAIL readiness result.",
         "location": "Application",
         "locationType": null,
         "app": "WorkFlowEngine",
@@ -389,64 +342,56 @@
         },
         "actor": "Pronghorn",
         "groups": [],
-        "nodeLocation": { "x": 1128, "y": 660 }
+        "nodeLocation": { "x": 1128, "y": 552 }
       },
       "workflow_end": {
         "name": "workflow_end",
         "groups": [],
-        "nodeLocation": { "x": 600, "y": 1560 }
+        "nodeLocation": { "x": 600, "y": 1308 }
       }
     },
     "transitions": {
       "workflow_start": { "0001": { "state": "success", "type": "standard" } },
       "0001": {
         "0002": { "state": "success", "type": "standard" },
-        "000f": { "state": "error", "type": "standard" }
+        "000e": { "state": "error", "type": "standard" }
       },
       "0002": {
         "0003": { "state": "success", "type": "standard" },
-        "000f": { "state": "error", "type": "standard" }
+        "000e": { "state": "failure", "type": "standard" }
       },
       "0003": {
-        "0004": { "state": "success", "type": "standard" },
-        "000f": { "state": "failure", "type": "standard" }
+        "0004": { "state": "success", "type": "standard" }
       },
       "0004": {
         "0005": { "state": "success", "type": "standard" },
-        "000f": { "state": "failure", "type": "standard" }
+        "000e": { "state": "error", "type": "standard" }
       },
       "0005": {
-        "0006": { "state": "success", "type": "standard" }
+        "0006": { "state": "success", "type": "standard" },
+        "000e": { "state": "failure", "type": "standard" }
       },
       "0006": {
         "0007": { "state": "success", "type": "standard" },
-        "000f": { "state": "error", "type": "standard" }
+        "000e": { "state": "error", "type": "standard" }
       },
       "0007": {
         "0008": { "state": "success", "type": "standard" },
-        "000f": { "state": "failure", "type": "standard" }
+        "000e": { "state": "failure", "type": "standard" }
       },
       "0008": {
-        "0009": { "state": "success", "type": "standard" },
-        "000f": { "state": "error", "type": "standard" }
+        "000d": { "state": "success", "type": "standard" },
+        "0009": { "state": "failure", "type": "standard" }
       },
       "0009": {
         "000a": { "state": "success", "type": "standard" },
-        "000f": { "state": "failure", "type": "standard" }
-      },
-      "000a": {
-        "000e": { "state": "success", "type": "standard" },
         "000b": { "state": "failure", "type": "standard" }
       },
-      "000b": {
-        "000c": { "state": "success", "type": "standard" },
-        "000d": { "state": "failure", "type": "standard" }
-      },
+      "000a": { "workflow_end": { "state": "success", "type": "standard" } },
+      "000b": { "000c": { "state": "success", "type": "standard" } },
       "000c": { "workflow_end": { "state": "success", "type": "standard" } },
-      "000d": { "0010": { "state": "success", "type": "standard" } },
-      "0010": { "workflow_end": { "state": "success", "type": "standard" } },
+      "000d": { "workflow_end": { "state": "success", "type": "standard" } },
       "000e": { "workflow_end": { "state": "success", "type": "standard" } },
-      "000f": { "workflow_end": { "state": "success", "type": "standard" } },
       "workflow_end": {}
     },
     "groups": [],
@@ -458,17 +403,10 @@
         "profile": {
           "type": "string",
           "enum": ["mlag_bgp", "bgp_only", "mlag_only", "basic_pair"]
-        },
-        "side_a_device": {
-          "type": "string",
-          "description": "Device identifier passed to the collection task for Side A. PLACEHOLDER: whether the real collection task expects a hostname, IP, or inventory ID is unverified."
-        },
-        "side_b_device": {
-          "type": "string",
-          "description": "Same as side_a_device, for Side B."
         }
       },
-      "required": ["pair_id", "target_version", "profile", "side_a_device", "side_b_device"]
+      "required": ["pair_id", "target_version", "profile"],
+      "description": "side_a_device/side_b_device were removed in this revision — the sendCommand task's inventory.nodeNames is currently hardcoded to the lab pair (see 0001's description) rather than wired from job inputs, so those inputs were no longer consumed by anything. They would return once dynamic per-pair inventory wiring is built."
     },
     "outputSchema": {
       "type": "object",
