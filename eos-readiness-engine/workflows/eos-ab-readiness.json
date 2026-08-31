@@ -1,0 +1,488 @@
+{
+  "automation": {
+    "name": "EOS A/B Pair Readiness — MVP1 (read-only)",
+    "description": "MVP1 read-only readiness check for an Arista EOS A/B pair. Runs the existing GatewayManager command-collection task against both sides, preserves each side's raw result.result.results array unparsed, assembles the profile-driven payload the eos-readiness-engine service expects, and branches on PASS/WARNING/FAIL. INTEGRATION NOTE: unlike an earlier draft workflow in this repo (eos-ab-upgrade/workflows/eos-precheck.json) which used an INTEGRATION_PLACEHOLDER sentinel app for unverified nodes, every task here uses a verified real Itential task type (GatewayManager/runService, query, merge, parse, evaluation, newVariable, ViewData) — only specific configuration VALUES (serviceName, clusterId, and the collection task's exact request parameter schema) are placeholders needing live-platform confirmation, not the task types themselves. Also assumes the 'Evaluate EOS Readiness' node calls a future IAG service wrapping eos-readiness-engine's evaluate_pair(payload) — that raw-payload-facing wrapper and its IAG service registration do not exist yet in this repo; only evaluate_normalized() (operating on already-normalized data) is built. Strictly read-only — implements no GSHUT, config changes, image staging, reload, or upgrade actions.",
+    "type": "automation",
+    "canvasVersion": 3,
+    "encodingVersion": 1,
+    "font_size": 12,
+    "tasks": {
+      "workflow_start": {
+        "name": "workflow_start",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 120 }
+      },
+      "0001": {
+        "name": "runService",
+        "canvasName": "runService",
+        "summary": "Collect Side A Commands",
+        "description": "Calls the existing GatewayManager command-collection task (referred to by the engineer as the 'Itential Gateway Manager sendCommand' task) against Side A. Runs show version / sh mlag / show ip bgp summary / show interfaces status and returns result.result.results[]. NEEDS VERIFICATION: (1) the real registered serviceName for this task — 'PLACEHOLDER' below is not confirmed; (2) whether it's actually invoked via runService (a pre-registered IAG service, assumed here) or runCode — not confirmed; (3) the exact request params schema (device targeting field name, whether commands are configurable or fixed) is unknown — deliberately left as a placeholder string rather than an invented object, per instruction not to guess task schemas.",
+        "location": "Application",
+        "locationType": null,
+        "app": "GatewayManager",
+        "type": "automatic",
+        "displayName": "GatewayManager",
+        "variables": {
+          "incoming": {
+            "serviceName": "PLACEHOLDER — confirm the real registered service name for bulk EOS command collection",
+            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
+            "params": "PLACEHOLDER — exact request schema (device targeting field, command list, etc.) for this existing collection task is unverified; confirm against the live platform's task schema before Build. Should target $var.job.side_a_device.",
+            "inventory": ""
+          },
+          "outgoing": { "result": "$var.job.side_a_raw_result" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 228 }
+      },
+      "0002": {
+        "name": "runService",
+        "canvasName": "runService",
+        "summary": "Collect Side B Commands",
+        "description": "Same as Collect Side A Commands (0001), targeting Side B. Same verification notes apply.",
+        "location": "Application",
+        "locationType": null,
+        "app": "GatewayManager",
+        "type": "automatic",
+        "displayName": "GatewayManager",
+        "variables": {
+          "incoming": {
+            "serviceName": "PLACEHOLDER — confirm the real registered service name for bulk EOS command collection",
+            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
+            "params": "PLACEHOLDER — exact request schema is unverified; confirm before Build. Should target $var.job.side_b_device.",
+            "inventory": ""
+          },
+          "outgoing": { "result": "$var.job.side_b_raw_result" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 336 }
+      },
+      "0003": {
+        "name": "query",
+        "canvasName": "query",
+        "summary": "Extract Side A Results",
+        "description": "Extracts the raw, unparsed result.result.results[] array from Side A's collection response (path is result.results relative to the task's own 'result' outgoing value, which itself nests another 'result' key per the engineer's stated real response shape). command/host/name/output/success are preserved exactly — nothing here parses EOS CLI output.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": {
+            "pass_on_null": false,
+            "query": "result.results",
+            "obj": "$var.job.side_a_raw_result"
+          },
+          "outgoing": { "return_data": "$var.job.side_a_results" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 444 }
+      },
+      "0004": {
+        "name": "query",
+        "canvasName": "query",
+        "summary": "Extract Side B Results",
+        "description": "Same as Extract Side A Results (0003), for Side B.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": {
+            "pass_on_null": false,
+            "query": "result.results",
+            "obj": "$var.job.side_b_raw_result"
+          },
+          "outgoing": { "return_data": "$var.job.side_b_results" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 552 }
+      },
+      "0005": {
+        "name": "merge",
+        "canvasName": "merge",
+        "summary": "Assemble Readiness Payload",
+        "description": "Builds the exact payload the readiness service expects: {pair_id, target_version, profile, side_a_results, side_b_results}. side_a_results/side_b_results are wired via task refs to 0003/0004 directly (not via {task:'job',...}), per AGENTS.md's merge/childJob rule — a job-ref here would incorrectly add side_a_results/side_b_results to the workflow's inputSchema.required, since they are internally produced, not genuine operator inputs.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": {
+            "data_to_merge": [
+              { "key": "pair_id", "value": { "task": "job", "variable": "pair_id" } },
+              { "key": "target_version", "value": { "task": "job", "variable": "target_version" } },
+              { "key": "profile", "value": { "task": "job", "variable": "profile" } },
+              { "key": "side_a_results", "value": { "task": "0003", "variable": "return_data" } },
+              { "key": "side_b_results", "value": { "task": "0004", "variable": "return_data" } }
+            ]
+          },
+          "outgoing": { "merged_object": "$var.job.readiness_payload" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 660 }
+      },
+      "0006": {
+        "name": "runService",
+        "canvasName": "runService",
+        "summary": "Evaluate EOS Readiness",
+        "description": "Placeholder call into the future eos-readiness IAG service. serviceName='eos-readiness' is PROPOSED, matching the eos-readiness-engine Python package's name — no IAG service has actually been registered for it yet, and its raw-payload-facing evaluate_pair(payload) wrapper doesn't exist yet either (only evaluate_normalized(), which takes already-normalized data, is built — see eos-readiness-engine/README.md's Status section). params is wired directly to the merge output ($var.job.readiness_payload) since that payload shape is exactly what the engineer specified, not a guess.",
+        "location": "Application",
+        "locationType": null,
+        "app": "GatewayManager",
+        "type": "automatic",
+        "displayName": "GatewayManager",
+        "variables": {
+          "incoming": {
+            "serviceName": "eos-readiness — PROPOSED, not yet registered on any live platform",
+            "clusterId": "PLACEHOLDER — confirm the registered Gateway cluster ID in the lab",
+            "params": "$var.job.readiness_payload",
+            "inventory": ""
+          },
+          "outgoing": { "result": "$var.job.readiness_result_raw" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 768 }
+      },
+      "0007": {
+        "name": "query",
+        "canvasName": "query",
+        "summary": "Extract Readiness Stdout",
+        "description": "Extracts result.stdout from the runService response, per AGENTS.md's documented runService→query(result.stdout)→parse convention for IAG python-script services. UNVERIFIED: whether this specific future service actually returns via stdout, or some other structured field — confirm once the service is built and tested against the live platform.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": {
+            "pass_on_null": false,
+            "query": "result.stdout",
+            "obj": "$var.job.readiness_result_raw"
+          },
+          "outgoing": { "return_data": "$var.job.readiness_result_json" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 876 }
+      },
+      "0008": {
+        "name": "parse",
+        "canvasName": "parse",
+        "summary": "Parse Readiness Result",
+        "description": "Converts the JSON string from the readiness service's stdout into an object: {ready, status, profile, checks, reasons} per the engineer's specified response contract.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": { "stringToParse": "$var.job.readiness_result_json" },
+          "outgoing": { "result": "$var.job.readiness_result" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 984 }
+      },
+      "0009": {
+        "name": "query",
+        "canvasName": "query",
+        "summary": "Extract Readiness Status",
+        "description": "Pulls the top-level status field (PASS/WARNING/FAIL) out of the parsed readiness result for the branch logic below.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": {
+            "pass_on_null": false,
+            "query": "status",
+            "obj": "$var.job.readiness_result"
+          },
+          "outgoing": { "return_data": "$var.job.readiness_status" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1092 }
+      },
+      "000a": {
+        "name": "evaluation",
+        "canvasName": "evaluation",
+        "summary": "Check Status Is FAIL",
+        "description": "First of two chained evaluation tasks implementing the 3-way PASS/WARNING/FAIL branch using only the verified evaluation task shape (no 'decision' task used, since no real 'decision' JSON example exists anywhere in this repo to verify its schema against). success (status==FAIL) -> Stop and Report. failure (not FAIL) -> continue to Check Status Is PASS.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": {
+            "all_true_flag": true,
+            "evaluation_groups": [
+              {
+                "all_true_flag": true,
+                "evaluations": [
+                  {
+                    "operand_1": { "task": "job", "variable": "readiness_status" },
+                    "operator": "==",
+                    "operand_2": { "task": "static", "variable": "FAIL" }
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoing": { "return_value": null },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1200 }
+      },
+      "000b": {
+        "name": "evaluation",
+        "canvasName": "evaluation",
+        "summary": "Check Status Is PASS",
+        "description": "Second evaluation. Only reached when status != FAIL. success (status==PASS) -> Readiness Successful. failure (status must be WARNING by elimination) -> Manual Approval / Review.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": {
+            "all_true_flag": true,
+            "evaluation_groups": [
+              {
+                "all_true_flag": true,
+                "evaluations": [
+                  {
+                    "operand_1": { "task": "job", "variable": "readiness_status" },
+                    "operator": "==",
+                    "operand_2": { "task": "static", "variable": "PASS" }
+                  }
+                ]
+              }
+            ]
+          },
+          "outgoing": { "return_value": null },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1308 }
+      },
+      "000c": {
+        "name": "newVariable",
+        "canvasName": "newVariable",
+        "summary": "Readiness Successful",
+        "description": "PASS path. Records a terminal outcome marker for job output.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": { "name": "outcome", "value": "proceed" },
+          "outgoing": { "value": "$var.job.outcome" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 336, "y": 1416 }
+      },
+      "000d": {
+        "name": "ViewData",
+        "canvasName": "ViewData",
+        "summary": "Manual Approval / Review",
+        "description": "WARNING path. Pauses for operator review of the readiness result before this pair is considered ready. MVP1 has no downstream action to gate (no upgrade functionality exists yet) — this is a review checkpoint only.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "manual",
+        "displayName": "Tools",
+        "view": "/workflow_engine/task/ViewData",
+        "taskVersion": 2,
+        "hostApp": "@itential/app-operations_manager",
+        "variables": {
+          "incoming": {
+            "header": "EOS Readiness — Review Required (WARNING)",
+            "message": "Readiness evaluation returned WARNING for this pair. Review the checks and reasons below.",
+            "body": "$var.job.readiness_result",
+            "variables": "$var.job.readiness_result",
+            "btn_success": "Acknowledge",
+            "btn_failure": ""
+          },
+          "outgoing": {}
+        },
+        "groups": [],
+        "nodeLocation": { "x": 864, "y": 1416 }
+      },
+      "0010": {
+        "name": "newVariable",
+        "canvasName": "newVariable",
+        "summary": "Record Pending Review Outcome",
+        "description": "Records the outcome marker after the operator acknowledges the Manual Approval / Review step. Separate from 000d because ViewData's own outgoing is empty — it doesn't write named job variables directly.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": { "name": "outcome", "value": "pending_review" },
+          "outgoing": { "value": "$var.job.outcome" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 864, "y": 1524 }
+      },
+      "000e": {
+        "name": "newVariable",
+        "canvasName": "newVariable",
+        "summary": "Stop and Report",
+        "description": "FAIL path. Records a terminal outcome marker for job output. Does not attempt any remediation, rollback, or config change — MVP1 is read-only, this node only marks the run halted.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": { "name": "outcome", "value": "halted_fail" },
+          "outgoing": { "value": "$var.job.outcome" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 864, "y": 1200 }
+      },
+      "000f": {
+        "name": "newVariable",
+        "canvasName": "newVariable",
+        "summary": "Handle Readiness Workflow Error",
+        "description": "Shared error/failure handler for every task above that can fail before a readiness status is ever determined (collection calls, extraction queries, the evaluate-readiness call, parse). Records a distinct outcome marker so this is never confused with a genuine FAIL readiness result.",
+        "location": "Application",
+        "locationType": null,
+        "app": "WorkFlowEngine",
+        "type": "operation",
+        "displayName": "WorkFlowEngine",
+        "variables": {
+          "incoming": { "name": "outcome", "value": "halted_error" },
+          "outgoing": { "value": "$var.job.outcome" },
+          "decorators": []
+        },
+        "actor": "Pronghorn",
+        "groups": [],
+        "nodeLocation": { "x": 1128, "y": 660 }
+      },
+      "workflow_end": {
+        "name": "workflow_end",
+        "groups": [],
+        "nodeLocation": { "x": 600, "y": 1560 }
+      }
+    },
+    "transitions": {
+      "workflow_start": { "0001": { "state": "success", "type": "standard" } },
+      "0001": {
+        "0002": { "state": "success", "type": "standard" },
+        "000f": { "state": "error", "type": "standard" }
+      },
+      "0002": {
+        "0003": { "state": "success", "type": "standard" },
+        "000f": { "state": "error", "type": "standard" }
+      },
+      "0003": {
+        "0004": { "state": "success", "type": "standard" },
+        "000f": { "state": "failure", "type": "standard" }
+      },
+      "0004": {
+        "0005": { "state": "success", "type": "standard" },
+        "000f": { "state": "failure", "type": "standard" }
+      },
+      "0005": {
+        "0006": { "state": "success", "type": "standard" }
+      },
+      "0006": {
+        "0007": { "state": "success", "type": "standard" },
+        "000f": { "state": "error", "type": "standard" }
+      },
+      "0007": {
+        "0008": { "state": "success", "type": "standard" },
+        "000f": { "state": "failure", "type": "standard" }
+      },
+      "0008": {
+        "0009": { "state": "success", "type": "standard" },
+        "000f": { "state": "error", "type": "standard" }
+      },
+      "0009": {
+        "000a": { "state": "success", "type": "standard" },
+        "000f": { "state": "failure", "type": "standard" }
+      },
+      "000a": {
+        "000e": { "state": "success", "type": "standard" },
+        "000b": { "state": "failure", "type": "standard" }
+      },
+      "000b": {
+        "000c": { "state": "success", "type": "standard" },
+        "000d": { "state": "failure", "type": "standard" }
+      },
+      "000c": { "workflow_end": { "state": "success", "type": "standard" } },
+      "000d": { "0010": { "state": "success", "type": "standard" } },
+      "0010": { "workflow_end": { "state": "success", "type": "standard" } },
+      "000e": { "workflow_end": { "state": "success", "type": "standard" } },
+      "000f": { "workflow_end": { "state": "success", "type": "standard" } },
+      "workflow_end": {}
+    },
+    "groups": [],
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pair_id": { "type": "string" },
+        "target_version": { "type": "string", "description": "Target EOS version, e.g. 4.33.1F" },
+        "profile": {
+          "type": "string",
+          "enum": ["mlag_bgp", "bgp_only", "mlag_only", "basic_pair"]
+        },
+        "side_a_device": {
+          "type": "string",
+          "description": "Device identifier passed to the collection task for Side A. PLACEHOLDER: whether the real collection task expects a hostname, IP, or inventory ID is unverified."
+        },
+        "side_b_device": {
+          "type": "string",
+          "description": "Same as side_a_device, for Side B."
+        }
+      },
+      "required": ["pair_id", "target_version", "profile", "side_a_device", "side_b_device"]
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": ["proceed", "pending_review", "halted_fail", "halted_error"],
+          "description": "proceed = PASS, pending_review = WARNING (see Manual Approval / Review), halted_fail = readiness FAIL, halted_error = workflow failed before a readiness status was ever determined"
+        },
+        "readiness_result": {
+          "type": "object",
+          "description": "Parsed response from Evaluate EOS Readiness — {ready, status, profile, checks, reasons}. Empty/absent if the run halted with outcome=halted_error before this was ever produced."
+        }
+      }
+    }
+  }
+}
