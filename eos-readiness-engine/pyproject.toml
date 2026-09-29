@@ -3,7 +3,9 @@ name = "eos-readiness-engine"
 version = "0.1.0"
 description = "Profile-driven Arista EOS upgrade-readiness decision engine, called by Itential"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "pydantic>=2,<3",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4", "ruff>=0.4"]
